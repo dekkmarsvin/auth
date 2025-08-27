@@ -49,4 +49,4 @@ jobs:
           repository_owner: ${{ github.repository_owner }}
           repository: ${{ github.repository }}
           untagged_only: true
-          owner_type: org
+          owner_type: user
