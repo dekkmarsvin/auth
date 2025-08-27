@@ -1,3 +1,4 @@
 .vscode/
 /data/
 .env
+docker-compose.local.yml
