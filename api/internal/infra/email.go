@@ -19,7 +19,7 @@ type emailClient struct {
 
 func NewEmailClient(domain string, apiKey string) EmailClient {
 	mg := mailgun.NewMailgun(apiKey)
-	mg.SetAPIBase(mailgun.APIBaseEU)
+	// mg.SetAPIBase(mailgun.APIBaseEU)
 	return &emailClient{
 		mg:     mg,
 		domain: domain,
