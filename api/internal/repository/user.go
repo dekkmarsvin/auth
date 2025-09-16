@@ -21,10 +21,10 @@ const (
 type User = model.AuthUser
 
 type UserFilter struct {
-	Username      *string
-	Role          *string
-	CreatedAfter  *time.Time
-	CreatedBefore *time.Time
+	Username      string
+	Role          string
+	CreatedBefore time.Time
+	CreatedAfter  time.Time
 }
 
 type UserRepository interface {
@@ -49,17 +49,17 @@ func (r *userRepository) List(filter UserFilter, pageNumber int64, pageSize int6
 	stmt := SELECT(AuthUser.AllColumns).
 		FROM(AuthUser)
 
-	if filter.Username != nil {
-		stmt = stmt.WHERE(AuthUser.Username.LIKE(String(*filter.Username)))
+	if filter.Username != "" {
+		stmt = stmt.WHERE(AuthUser.Username.LIKE(String(filter.Username)))
 	}
-	if filter.Role != nil {
-		stmt = stmt.WHERE(AuthUser.Role.EQ(String(*filter.Role)))
+	if filter.Role != "" {
+		stmt = stmt.WHERE(AuthUser.Role.EQ(String(filter.Role)))
 	}
-	if filter.CreatedAfter != nil {
-		stmt = stmt.WHERE(AuthUser.CreatedAt.GT(TimestampzT(*filter.CreatedAfter)))
+	if !filter.CreatedBefore.IsZero() {
+		stmt = stmt.WHERE(AuthUser.CreatedAt.LT(TimestampzT(filter.CreatedBefore)))
 	}
-	if filter.CreatedBefore != nil {
-		stmt = stmt.WHERE(AuthUser.CreatedAt.LT(TimestampzT(*filter.CreatedBefore)))
+	if !filter.CreatedAfter.IsZero() {
+		stmt = stmt.WHERE(AuthUser.CreatedAt.GT(TimestampzT(filter.CreatedAfter)))
 	}
 
 	stmt = stmt.

@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -81,4 +84,22 @@ func Body[T any](r *http.Request) (T, error) {
 	}
 
 	return result, nil
+}
+
+func GetQueryAsInt(query url.Values, key string, defaultValue int64) int64 {
+	createAtStr := query.Get(key)
+	epochSeconds, err := strconv.ParseInt(createAtStr, 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+	return epochSeconds
+}
+
+func GetQueryAsTime(query url.Values, key string, defaultValue time.Time) time.Time {
+	createAtStr := query.Get(key)
+	epochSeconds, err := strconv.ParseInt(createAtStr, 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+	return time.Unix(epochSeconds, 0)
 }

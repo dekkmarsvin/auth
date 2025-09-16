@@ -53,7 +53,17 @@ func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
 		slog.Error("Access token verification failed", "error", err)
 		return err
 	}
-	users, err := s.userRepo.List(repository.UserFilter{}, 0, 10)
+	query := r.URL.Query()
+	filter := repository.UserFilter{
+		Username:      query.Get("username"),
+		Role:          query.Get("role"),
+		CreatedAfter:  util.GetQueryAsTime(query, "created_after", time.Time{}),
+		CreatedBefore: util.GetQueryAsTime(query, "created_before", time.Time{}),
+	}
+	page := util.GetQueryAsInt(query, "page", 1)
+	pageSize := util.GetQueryAsInt(query, "page_size", 50)
+
+	users, err := s.userRepo.List(filter, (page-1)*pageSize, pageSize)
 	if err != nil {
 		slog.Error("Failed to list users", "error", err)
 		return err
