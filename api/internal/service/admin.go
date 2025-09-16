@@ -47,6 +47,21 @@ func (s *adminService) Use(router chi.Router) {
 	router.Post("/user/strike", util.EH(s.StrikeUser))
 }
 
+type PageResponse[T any] struct {
+	Total int64 `json:"total"`
+	Items []T   `json:"items"`
+}
+
+type UserResponse struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	LastLogin time.Time `json:"last_login"`
+	Attr      string    `json:"attr"`
+}
+
 func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
 	_, err := util.VerifyAccessToken(r, true)
 	if err != nil {
@@ -63,10 +78,31 @@ func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
 	page := util.GetQueryAsInt(query, "page", 1)
 	pageSize := util.GetQueryAsInt(query, "page_size", 50)
 
+	usersCount, err := s.userRepo.Count(filter)
+	if err != nil {
+		slog.Error("Failed to count users", "error", err)
+		return err
+	}
+
 	users, err := s.userRepo.List(filter, (page-1)*pageSize, pageSize)
 	if err != nil {
 		slog.Error("Failed to list users", "error", err)
 		return err
+	}
+
+	userPage := PageResponse[UserResponse]{
+		Total: usersCount,
+		Items: make([]UserResponse, len(users)),
+	}
+	for i, user := range users {
+		userPage.Items[i] = UserResponse{
+			ID:        user.ID,
+			Name:      user.Username,
+			Email:     user.Email,
+			CreatedAt: user.CreatedAt,
+			LastLogin: user.LastLogin,
+			Attr:      user.Attr,
+		}
 	}
 	return util.RespondJson(w, users)
 }
