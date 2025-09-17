@@ -84,7 +84,7 @@ func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	users, err := s.userRepo.List(filter, (page-1)*pageSize, pageSize)
+	users, err := s.userRepo.List(filter, pageSize, (page-1)*pageSize)
 	if err != nil {
 		slog.Error("Failed to list users", "error", err)
 		return err
@@ -99,12 +99,13 @@ func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
 			ID:        user.ID,
 			Name:      user.Username,
 			Email:     user.Email,
+			Role:      user.Role,
 			CreatedAt: user.CreatedAt,
 			LastLogin: user.LastLogin,
 			Attr:      user.Attr,
 		}
 	}
-	return util.RespondJson(w, users)
+	return util.RespondJson(w, userPage)
 }
 
 func (s *adminService) RestrictUser(w http.ResponseWriter, r *http.Request) error {

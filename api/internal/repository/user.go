@@ -28,7 +28,7 @@ type UserFilter struct {
 }
 
 type UserRepository interface {
-	List(filter UserFilter, pageNumber, pageSize int64) ([]*User, error)
+	List(filter UserFilter, size int64, skip int64) ([]User, error)
 	Count(filter UserFilter) (int64, error)
 	FindByUsername(username string) (*User, error)
 	FindByEmail(email string) (*User, error)
@@ -46,47 +46,53 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
-func applyUserFilter(stmt SelectStatement, filter UserFilter) SelectStatement {
+func (filter UserFilter) exp() BoolExpression {
+	exps := []BoolExpression{}
 	if filter.Username != "" {
-		stmt = stmt.WHERE(AuthUser.Username.LIKE(String(filter.Username)))
+		exps = append(exps, AuthUser.Username.LIKE(String(filter.Username)))
 	}
 	if filter.Role != "" {
-		stmt = stmt.WHERE(AuthUser.Role.EQ(String(filter.Role)))
+		exps = append(exps, AuthUser.Role.EQ(String(filter.Role)))
 	}
 	if !filter.CreatedBefore.IsZero() {
-		stmt = stmt.WHERE(AuthUser.CreatedAt.LT(TimestampzT(filter.CreatedBefore)))
+		exps = append(exps, AuthUser.CreatedAt.LT(TimestampzT(filter.CreatedBefore)))
 	}
 	if !filter.CreatedAfter.IsZero() {
-		stmt = stmt.WHERE(AuthUser.CreatedAt.GT(TimestampzT(filter.CreatedAfter)))
+		exps = append(exps, AuthUser.CreatedAt.GT(TimestampzT(filter.CreatedAfter)))
 	}
-	return stmt
+	if len(exps) == 0 {
+		return RawBool("TRUE")
+	} else {
+		return AND(exps...)
+	}
 }
 
 func (r *userRepository) Count(filter UserFilter) (int64, error) {
-	stmt := SELECT(COUNT(AuthUser.ID)).
-		FROM(AuthUser)
-	stmt = applyUserFilter(stmt, filter)
+	stmt := SELECT(COUNT(STAR)).
+		FROM(AuthUser).
+		WHERE(filter.exp())
 
-	var dest int64
+	var dest struct {
+		Count int64
+	}
 	err := stmt.Query(r.db, &dest)
 	if err == qrm.ErrNoRows {
 		return 0, nil
 	} else if err != nil {
 		return 0, err
 	}
-	return dest, nil
+	return dest.Count, nil
 }
 
-func (r *userRepository) List(filter UserFilter, pageNumber int64, pageSize int64) ([]*User, error) {
+func (r *userRepository) List(filter UserFilter, size int64, skip int64) ([]User, error) {
 	stmt := SELECT(AuthUser.AllColumns).
-		FROM(AuthUser)
-	stmt = applyUserFilter(stmt, filter)
-	stmt = stmt.
+		FROM(AuthUser).
+		WHERE(filter.exp()).
 		ORDER_BY(AuthUser.ID.ASC()).
-		LIMIT(pageSize).
-		OFFSET(pageNumber * pageSize)
+		OFFSET(skip).
+		LIMIT(size)
 
-	var dest []*User
+	var dest []User
 	err := stmt.Query(r.db, &dest)
 	if err == qrm.ErrNoRows {
 		return nil, nil
