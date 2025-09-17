@@ -53,13 +53,13 @@ type PageResponse[T any] struct {
 }
 
 type UserResponse struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
-	LastLogin time.Time `json:"last_login"`
-	Attr      string    `json:"attr"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
+	CreatedAt int64  `json:"createdAt"`
+	LastLogin int64  `json:"lastLogin"`
+	Attr      string `json:"attr"`
 }
 
 func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
@@ -100,8 +100,8 @@ func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
 			Name:      user.Username,
 			Email:     user.Email,
 			Role:      user.Role,
-			CreatedAt: user.CreatedAt,
-			LastLogin: user.LastLogin,
+			CreatedAt: user.CreatedAt.UnixMilli(),
+			LastLogin: user.LastLogin.UnixMilli(),
 			Attr:      user.Attr,
 		}
 	}
