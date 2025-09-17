@@ -21,14 +21,15 @@ const (
 type User = model.AuthUser
 
 type UserFilter struct {
-	Username      *string
-	Role          *string
-	CreatedAfter  *time.Time
-	CreatedBefore *time.Time
+	Username      string
+	Role          string
+	CreatedBefore time.Time
+	CreatedAfter  time.Time
 }
 
 type UserRepository interface {
 	List(filter UserFilter, pageNumber, pageSize int64) ([]*User, error)
+	Count(filter UserFilter) (int64, error)
 	FindByUsername(username string) (*User, error)
 	FindByEmail(email string) (*User, error)
 	Save(user *User) error
@@ -45,23 +46,41 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
+func applyUserFilter(stmt SelectStatement, filter UserFilter) SelectStatement {
+	if filter.Username != "" {
+		stmt = stmt.WHERE(AuthUser.Username.LIKE(String(filter.Username)))
+	}
+	if filter.Role != "" {
+		stmt = stmt.WHERE(AuthUser.Role.EQ(String(filter.Role)))
+	}
+	if !filter.CreatedBefore.IsZero() {
+		stmt = stmt.WHERE(AuthUser.CreatedAt.LT(TimestampzT(filter.CreatedBefore)))
+	}
+	if !filter.CreatedAfter.IsZero() {
+		stmt = stmt.WHERE(AuthUser.CreatedAt.GT(TimestampzT(filter.CreatedAfter)))
+	}
+	return stmt
+}
+
+func (r *userRepository) Count(filter UserFilter) (int64, error) {
+	stmt := SELECT(COUNT(AuthUser.ID)).
+		FROM(AuthUser)
+	stmt = applyUserFilter(stmt, filter)
+
+	var dest int64
+	err := stmt.Query(r.db, &dest)
+	if err == qrm.ErrNoRows {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	return dest, nil
+}
+
 func (r *userRepository) List(filter UserFilter, pageNumber int64, pageSize int64) ([]*User, error) {
 	stmt := SELECT(AuthUser.AllColumns).
 		FROM(AuthUser)
-
-	if filter.Username != nil {
-		stmt = stmt.WHERE(AuthUser.Username.LIKE(String(*filter.Username)))
-	}
-	if filter.Role != nil {
-		stmt = stmt.WHERE(AuthUser.Role.EQ(String(*filter.Role)))
-	}
-	if filter.CreatedAfter != nil {
-		stmt = stmt.WHERE(AuthUser.CreatedAt.GT(TimestampzT(*filter.CreatedAfter)))
-	}
-	if filter.CreatedBefore != nil {
-		stmt = stmt.WHERE(AuthUser.CreatedAt.LT(TimestampzT(*filter.CreatedBefore)))
-	}
-
+	stmt = applyUserFilter(stmt, filter)
 	stmt = stmt.
 		ORDER_BY(AuthUser.ID.ASC()).
 		LIMIT(pageSize).

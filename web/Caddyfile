@@ -2,9 +2,10 @@
 	@origin{args[0]} header Origin {args[1]}
 	header @origin{args[0]} {
 		Access-Control-Allow-Origin "{args[1]}"
-		Access-Control-Allow-Method *
+		Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
 		Access-Control-Allow-Credentials "true"
 		Access-Control-Max-Age "3600"
+		Access-Control-Allow-Headers "Content-Type, Authorization"
 	}
 }
 
