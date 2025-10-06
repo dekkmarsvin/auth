@@ -21,7 +21,7 @@ const (
 type User = model.AuthUser
 
 type UserFilter struct {
-	Username      string
+	Query         string
 	Role          string
 	CreatedBefore time.Time
 	CreatedAfter  time.Time
@@ -48,8 +48,11 @@ func NewUserRepository(db *sql.DB) UserRepository {
 
 func (filter UserFilter) exp() BoolExpression {
 	exps := []BoolExpression{}
-	if filter.Username != "" {
-		exps = append(exps, AuthUser.Username.LIKE(String(filter.Username)))
+	if filter.Query != "" {
+		exps = append(exps, OR(
+			AuthUser.Username.LIKE(String(filter.Query)),
+			AuthUser.Email.LIKE(String(filter.Query)),
+		))
 	}
 	if filter.Role != "" {
 		exps = append(exps, AuthUser.Role.EQ(String(filter.Role)))

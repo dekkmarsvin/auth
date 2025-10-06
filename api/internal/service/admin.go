@@ -70,7 +70,7 @@ func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
 	}
 	query := r.URL.Query()
 	filter := repository.UserFilter{
-		Username:      query.Get("username"),
+		Query:         query.Get("q"),
 		Role:          query.Get("role"),
 		CreatedAfter:  util.GetQueryAsTime(query, "created_after", time.Time{}),
 		CreatedBefore: util.GetQueryAsTime(query, "created_before", time.Time{}),
