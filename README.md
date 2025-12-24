@@ -1,4 +1,4 @@
-# Auth
+# Auth 认证服务
 
 [![GPL-3.0](https://img.shields.io/github/license/auto-novel/auth)](https://github.com/auto-novel/auth#license)
 [![cd-web](https://github.com/auto-novel/auth/actions/workflows/cd-web.yml/badge.svg)](https://github.com/auto-novel/auth/actions/workflows/cd-web.yml)
@@ -6,7 +6,14 @@
 
 提供统一登录认证（SSO）服务，支持用户注册、登录、令牌管理和邮箱验证等功能。
 
+## 贡献
+
+请务必在编写代码前阅读[贡献指南](https://github.com/auto-novel/auth/blob/main/CONTRIBUTING.md)，感谢所有为本项目做出贡献的人们！
+
 ## 部署
+
+> [!WARNING]
+> 注意：本项目并不是为了个人部署设计的，不保证所有功能可用和前向兼容。
 
 ```bash
 # 1. 克隆仓库
@@ -26,41 +33,4 @@ EOF
 docker compose up -d
 ```
 
-## 开发
-
-### 本地编译镜像
-
-```bash
-export COMPOSE_FILE="docker-compose.yml:docker-compose.debug.yml"
-docker compose up -d
-```
-
-### Api
-
-设置开发环境：
-
-```bash
-cd api
-
-# 安装依赖
-go mod download
-
-# 生成 Jet SQL 代码
-./script/build_jet.sh
-
-# 编译
-go build
-```
-
-运行集成测试：
-
-```bash
-# 确保服务正在运行
-docker compose up -d
-
-cd api
-
-# 运行测试（需要服务已启动）
-go clean -testcache
-go test ./... -v -p 4
-```
+启动后，访问 http://localhost:4000 即可。
