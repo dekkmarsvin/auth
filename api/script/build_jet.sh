@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+cd "$(dirname "$0")/../"
+
 echo "启动 PostgreSQL 容器"
 CONTAINER_ID=$(docker run -d \
   -e POSTGRES_USER=auth \

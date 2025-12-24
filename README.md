@@ -2,38 +2,63 @@
 
 [![GPL-3.0](https://img.shields.io/github/license/auto-novel/auth)](https://github.com/auto-novel/auth#license)
 
-提供统一登录认证（SSO）服务。
+提供统一登录认证（SSO）服务，支持用户注册、登录、令牌管理和邮箱验证等功能。
 
 ## 部署
 
 ```bash
-# 下载项目
-mkdir auth
+# 1. 克隆仓库
+git clone https://github.com/auto-novel/auth.git
 cd auth
-mkdir sql
-curl -sSL "https://raw.githubusercontent.com/auto-novel/auth/refs/heads/main/docker-compose.yml" -o "./docker-compose.yml"
-curl -sSL "https://raw.githubusercontent.com/auto-novel/auth/refs/heads/main/sql/init.sql" -o "./sql/init.sql"
 
-# 配置环境变量
-echo "REFRESH_TOKEN_SECRET=$(pwgen -s 64 1)" >> .env
-echo "ACCESS_TOKEN_SECRET=$(pwgen -s 64 1)" >> .env
-echo "POSTGRES_PASSWORD=$(pwgen -s 64 1)" >> .env
-echo "MAILGUN_DOMAIN=verify.fishhawk.top" >> .env
-echo "MAILGUN_APIKEY=" >> .env
+# 2. 生成环境变量配置
+cat > .env << EOF
+REFRESH_TOKEN_SECRET=$(openssl rand -base64 48)
+ACCESS_TOKEN_SECRET=$(openssl rand -base64 48)
+POSTGRES_PASSWORD=$(openssl rand -base64 48)
+MAILGUN_DOMAIN=verify.fishhawk.top
+MAILGUN_APIKEY=<mailgun_apikey>
+EOF
 
-# 启动服务
+# 3. 启动服务
 docker compose up -d
 ```
 
 ## 开发
 
-### Api
+### 本地编译镜像
 
 ```bash
-make start_debug        # 启动 docker compose, debug 模式
-make start_release      # 启动 docker compose, release 模式
-make stop               # 关闭 docker compose
+export COMPOSE_FILE="docker-compose.yml:docker-compose.debug.yml"
+docker compose up -d
+```
 
-make generate           # 生成 sql 代码
-make integration_test   # 运行集成测试
+### Api
+
+设置开发环境：
+
+```bash
+cd api
+
+# 安装依赖
+go mod download
+
+# 生成 Jet SQL 代码
+./script/build_jet.sh
+
+# 编译
+go build
+```
+
+运行集成测试：
+
+```bash
+# 确保服务正在运行
+docker compose up -d
+
+cd api
+
+# 运行测试（需要服务已启动）
+go clean -testcache
+go test ./... -v -p 4
 ```
