@@ -4,7 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "pnpm dev:remote",
+    "dev:remote": "NODE_ENV=development VITE_API_MODE=remote vite",
+    "dev:local": "NODE_ENV=development VITE_API_MODE=local vite",
+    "dev:native": "NODE_ENV=development VITE_API_MODE=native vite",
     "build": "vite build && vue-tsc -b",
     "preview": "vite preview"
   },
@@ -24,6 +27,7 @@
     "vue-tsc": "^2.2.12"
   },
   "devDependencies": {
+    "@types/node": "^25.0.3",
     "prettier": "^3.6.2"
   }
 }

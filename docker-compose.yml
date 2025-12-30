@@ -21,12 +21,14 @@ services:
       - REFRESH_TOKEN_SECRET
       - ACCESS_TOKEN_SECRET
       - DB_HOST=postgresql
+      - DB_PORT=5432
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - RDB_HOST=redis
+      - RDB_PORT=6379
       - MAILGUN_DOMAIN
       - MAILGUN_APIKEY
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider --tries=1 --no-verbose http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "wget --spider --tries=1 --no-verbose http://localhost:8080/health || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 5

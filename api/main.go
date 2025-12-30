@@ -42,14 +42,14 @@ func main() {
 	// infra
 	db := infra.NewSqlDb(
 		env("DB_HOST", "localhost"),
-		envInt("DB_PORT", 5432),
+		envInt("DB_PORT", 4002),
 		env("DB_USER", "auth"),
 		env("DB_PASSWORD", ""),
 		env("DB_NAME", "auth"),
 	)
 	rdb := infra.NewRedis(
 		env("RDB_HOST", "localhost"),
-		envInt("RDB_PORT", 6379),
+		envInt("RDB_PORT", 4003),
 		env("RDB_USER", "auth"),
 		env("RDB_PASSWORD", ""),
 	)
@@ -88,5 +88,6 @@ func main() {
 		router.Route("/auth", authService.Use)
 		router.Route("/admin", adminService.Use)
 	})
-	http.ListenAndServe(":3000", router)
+	slog.Info("Listening on localhost:8080...")
+	http.ListenAndServe(":8080", router)
 }

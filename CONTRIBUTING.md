@@ -7,19 +7,31 @@
 
 ## 以调试模式启动服务
 
-在开发前，需要以调试模式启动服务。
+在开发前，建议执行以下命令，以调试模式启动服务。
 
 ```bash
 export COMPOSE_FILE="docker-compose.yml:docker-compose.debug.yml"
 docker compose up -d
 ```
 
+服务启动后，可通过以下地址访问：
+- Web: localhost:4000
+- Api: localhost:4000/api
+- Postgresql: localhost:4001
+- Redis: localhost:4002
+
 ## 前端开发
 
 ```bash
 cd web
 pnpm install
-pnpm run dev
+
+pnpm dev        # 默认：连接到线上后端API (同 pnpm dev:remote)
+pnpm dev:remote # 连接到线上后端API服务
+pnpm dev:local  # 连接到本地Docker Compose后端API服务
+pnpm dev:native # 连接到本地启动的后端API服务
+
+pnpm build      # 编译项目
 ```
 
 ## 后端开发
