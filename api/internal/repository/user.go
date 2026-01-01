@@ -70,23 +70,6 @@ func (filter UserFilter) exp() BoolExpression {
 	}
 }
 
-func (r *userRepository) Count(filter UserFilter) (int64, error) {
-	stmt := SELECT(COUNT(STAR)).
-		FROM(AuthUser).
-		WHERE(filter.exp())
-
-	var dest struct {
-		Count int64
-	}
-	err := stmt.Query(r.db, &dest)
-	if err == qrm.ErrNoRows {
-		return 0, nil
-	} else if err != nil {
-		return 0, err
-	}
-	return dest.Count, nil
-}
-
 func (r *userRepository) List(filter UserFilter, size int64, skip int64) ([]User, error) {
 	stmt := SELECT(AuthUser.AllColumns).
 		FROM(AuthUser).
@@ -103,6 +86,23 @@ func (r *userRepository) List(filter UserFilter, size int64, skip int64) ([]User
 		return nil, err
 	}
 	return dest, nil
+}
+
+func (r *userRepository) Count(filter UserFilter) (int64, error) {
+	stmt := SELECT(COUNT(STAR)).
+		FROM(AuthUser).
+		WHERE(filter.exp())
+
+	var dest struct {
+		Count int64
+	}
+	err := stmt.Query(r.db, &dest)
+	if err == qrm.ErrNoRows {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	return dest.Count, nil
 }
 
 func (r *userRepository) FindByUsername(username string) (*User, error) {

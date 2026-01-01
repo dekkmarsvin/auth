@@ -22,6 +22,7 @@ type AdminService interface {
 	RestrictUser(http.ResponseWriter, *http.Request) error
 	BanUser(http.ResponseWriter, *http.Request) error
 	StrikeUser(http.ResponseWriter, *http.Request) error
+	GetEvent(http.ResponseWriter, *http.Request) error
 }
 
 type adminService struct {
@@ -45,6 +46,7 @@ func (s *adminService) Use(router chi.Router) {
 	router.Post("/user/restrict", util.EH(s.RestrictUser))
 	router.Post("/user/ban", util.EH(s.BanUser))
 	router.Post("/user/strike", util.EH(s.StrikeUser))
+	router.Get("/event", util.EH(s.GetEvent))
 }
 
 type PageResponse[T any] struct {
@@ -60,6 +62,13 @@ type UserResponse struct {
 	CreatedAt int64  `json:"createdAt"`
 	LastLogin int64  `json:"lastLogin"`
 	Attr      string `json:"attr"`
+}
+
+type EventResponse struct {
+	ID        int64     `json:"id"`
+	Action    string    `json:"action"`
+	Detail    string    `json:"detail"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 func (s *adminService) GetUser(w http.ResponseWriter, r *http.Request) error {
@@ -283,4 +292,48 @@ func (s *adminService) StrikeUser(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	return nil
+}
+
+func (s *adminService) GetEvent(w http.ResponseWriter, r *http.Request) error {
+	_, err := util.VerifyAccessToken(r, true)
+	if err != nil {
+		slog.Error("Access token verification failed", "error", err)
+		return err
+	}
+	query := r.URL.Query()
+	filter := repository.EventFilter{
+		ActorUser:     query.Get("actor_user"),
+		TargetUser:    query.Get("target_user"),
+		Action:        query.Get("action"),
+		CreatedAfter:  util.GetQueryAsTime(query, "created_after", time.Time{}),
+		CreatedBefore: util.GetQueryAsTime(query, "created_before", time.Time{}),
+	}
+	page := util.GetQueryAsInt(query, "page", 1)
+	pageSize := util.GetQueryAsInt(query, "page_size", 50)
+
+	eventsCount, err := s.eventRepo.Count(filter)
+	if err != nil {
+		slog.Error("Failed to count events", "error", err)
+		return err
+	}
+
+	events, err := s.eventRepo.List(filter, pageSize, (page-1)*pageSize)
+	if err != nil {
+		slog.Error("Failed to list events", "error", err)
+		return err
+	}
+
+	eventPage := PageResponse[EventResponse]{
+		Total: eventsCount,
+		Items: make([]EventResponse, len(events)),
+	}
+	for i, event := range events {
+		eventPage.Items[i] = EventResponse{
+			ID:        event.ID,
+			Action:    event.Action,
+			Detail:    event.Detail,
+			CreatedAt: event.CreatedAt,
+		}
+	}
+	return util.RespondJson(w, eventPage)
 }
