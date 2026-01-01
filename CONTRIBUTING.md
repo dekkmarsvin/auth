@@ -22,17 +22,24 @@ docker compose up -d
 
 ## 前端开发
 
+基于 Vue3 / TypeScript / Vite 构建。
+
 ```bash
 cd web
 pnpm install
+pnpm prepare
 
-pnpm dev        # 默认：连接到线上后端API (同 pnpm dev:remote)
-pnpm dev:remote # 连接到线上后端API服务
-pnpm dev:local  # 连接到本地Docker Compose后端API服务
-pnpm dev:native # 连接到本地启动的后端API服务
-
-pnpm build      # 编译项目
+pnpm dev     # 启动开发服务器
+pnpm build   # 编译项目
 ```
+
+启动时可根据需要连接不同的后端服务：
+
+- `pnpm dev` 或 `pnpm dev:remote`:对接线上后端 API，适合纯前端修改，请勿污染线上数据，默认禁用翻译上传。
+- `pnpm dev:local`:对接本地 Docker 后端 API，需修改后端数据时使用。
+- `pnpm dev:native`:对接本地原生启动的后端 API，用于前后端联调。
+
+若需要在手机等设备调试，可添加 `--host` 参数启动服务。
 
 ## 后端开发
 

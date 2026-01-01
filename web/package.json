@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm dev:remote",
-    "dev:remote": "NODE_ENV=development VITE_API_MODE=remote vite",
-    "dev:local": "NODE_ENV=development VITE_API_MODE=local vite",
-    "dev:native": "NODE_ENV=development VITE_API_MODE=native vite",
+    "dev:remote": "VITE_API_MODE=remote vite",
+    "dev:local": "VITE_API_MODE=local vite",
+    "dev:native": "VITE_API_MODE=native vite",
     "build": "vite build && vue-tsc -b",
     "preview": "vite preview"
   },

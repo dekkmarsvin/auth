@@ -10,6 +10,16 @@ import { createHtmlPlugin } from 'vite-plugin-html';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
   const apiMode = env.VITE_API_MODE;
+  const apiUrl = (() => {
+    if (apiMode === 'remote') {
+      return 'https://n.novelia.cc';
+    } else if (apiMode === 'local') {
+      return 'http://localhost:3000';
+    } else if (apiMode === 'native') {
+      return 'http://localhost:8080';
+    }
+    return 'https://n.novelia.cc';
+  })();
 
   const config: UserConfig = {
     build: {
@@ -23,15 +33,7 @@ export default defineConfig(({ mode }) => {
       },
       proxy: {
         '/api': {
-          target: (() => {
-            if (apiMode === 'local') {
-              return 'http://localhost:3000';
-            } else if (apiMode === 'native') {
-              return 'http://localhost:8080';
-            } else {
-              return 'https://auth.novelia.cc';
-            }
-          })(),
+          target: apiUrl,
           changeOrigin: true,
           rewrite:
             apiMode === 'native'
@@ -54,7 +56,7 @@ export default defineConfig(({ mode }) => {
         minify: { minifyJS: true },
       }),
       AutoImport({
-        dts: './src/auto-imports.d.ts',
+        dts: 'src/auto-imports.d.ts',
         imports: ['vue', 'vue-router', 'pinia'],
       }),
       Components({
