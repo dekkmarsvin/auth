@@ -13,10 +13,10 @@ importers:
         version: 5.0.2(postcss@8.5.6)
       '@tailwindcss/vite':
         specifier: ^4.1.11
-        version: 4.1.11(vite@7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))
+        version: 4.1.11(vite@7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))
       '@vitejs/plugin-vue':
         specifier: ^6.0.0
-        version: 6.0.1(vite@7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))(vue@3.5.18(typescript@5.8.3))
+        version: 6.0.1(vite@7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))(vue@3.5.18(typescript@5.8.3))
       '@vue/tsconfig':
         specifier: ^0.7.0
         version: 0.7.0(typescript@5.8.3)(vue@3.5.18(typescript@5.8.3))
@@ -34,10 +34,10 @@ importers:
         version: 28.8.0(@babel/parser@7.28.0)(vue@3.5.18(typescript@5.8.3))
       vite:
         specifier: ^7.0.6
-        version: 7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
+        version: 7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
       vite-plugin-html:
         specifier: ^3.2.2
-        version: 3.2.2(vite@7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))
+        version: 3.2.2(vite@7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))
       vue:
         specifier: ^3.5.18
         version: 3.5.18(typescript@5.8.3)
@@ -48,6 +48,9 @@ importers:
         specifier: ^2.2.12
         version: 2.2.12(typescript@5.8.3)
     devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.0.3
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -474,6 +477,9 @@ packages:
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+
+  '@types/node@25.0.3':
+    resolution: {integrity: sha512-W609buLVRVmeW693xKfzHeIV6nJGGz98uCPfeXI1ELMLXVeKYZ9m15fAMSaUPBHYLGFsVRcMmSCksQOrZV9BYA==}
 
   '@vitejs/plugin-vue@6.0.1':
     resolution: {integrity: sha512-+MaE752hU0wfPFJEUAIxqw18+20euHHdxVtMvbFcOEpjEyfqXH/5DCoTHiVJ0J29EhTJdoTkjEv5YBKU9dnoTw==}
@@ -1035,6 +1041,9 @@ packages:
   ufo@1.6.1:
     resolution: {integrity: sha512-9a4/uxlTWJ4+a5i0ooc1rU7C7YOw3wT+UGqdeNNHWnOF9qcMBgLRS+4IYUqbczewFx4mLEig6gawh7X6mFlEkA==}
 
+  undici-types@7.16.0:
+    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
+
   unimport@5.2.0:
     resolution: {integrity: sha512-bTuAMMOOqIAyjV4i4UH7P07pO+EsVxmhOzQ2YJ290J6mkLUdozNhb5I/YoOEheeNADC03ent3Qj07X0fWfUpmw==}
     engines: {node: '>=18.12.0'}
@@ -1425,19 +1434,23 @@ snapshots:
       '@tailwindcss/oxide-win32-arm64-msvc': 4.1.11
       '@tailwindcss/oxide-win32-x64-msvc': 4.1.11
 
-  '@tailwindcss/vite@4.1.11(vite@7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))':
+  '@tailwindcss/vite@4.1.11(vite@7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))':
     dependencies:
       '@tailwindcss/node': 4.1.11
       '@tailwindcss/oxide': 4.1.11
       tailwindcss: 4.1.11
-      vite: 7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
+      vite: 7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
 
   '@types/estree@1.0.8': {}
 
-  '@vitejs/plugin-vue@6.0.1(vite@7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))(vue@3.5.18(typescript@5.8.3))':
+  '@types/node@25.0.3':
+    dependencies:
+      undici-types: 7.16.0
+
+  '@vitejs/plugin-vue@6.0.1(vite@7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1))(vue@3.5.18(typescript@5.8.3))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-beta.29
-      vite: 7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
+      vite: 7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
       vue: 3.5.18(typescript@5.8.3)
 
   '@volar/language-core@2.4.15':
@@ -2023,6 +2036,8 @@ snapshots:
 
   ufo@1.6.1: {}
 
+  undici-types@7.16.0: {}
+
   unimport@5.2.0:
     dependencies:
       acorn: 8.15.0
@@ -2080,7 +2095,7 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite-plugin-html@3.2.2(vite@7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)):
+  vite-plugin-html@3.2.2(vite@7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)):
     dependencies:
       '@rollup/pluginutils': 4.2.1
       colorette: 2.0.20
@@ -2094,9 +2109,9 @@ snapshots:
       html-minifier-terser: 6.1.0
       node-html-parser: 5.4.2
       pathe: 0.2.0
-      vite: 7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
+      vite: 7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
 
-  vite@7.0.6(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1):
+  vite@7.0.6(@types/node@25.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1):
     dependencies:
       esbuild: 0.25.8
       fdir: 6.4.6(picomatch@4.0.3)
@@ -2105,6 +2120,7 @@ snapshots:
       rollup: 4.45.1
       tinyglobby: 0.2.14
     optionalDependencies:
+      '@types/node': 25.0.3
       fsevents: 2.3.3
       jiti: 2.4.2
       lightningcss: 1.30.1

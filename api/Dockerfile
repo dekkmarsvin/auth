@@ -3,10 +3,10 @@ WORKDIR /api
 COPY go.mod go.sum .
 RUN go mod download
 COPY . .
-RUN go build -o api-server
+RUN go build -o app
 
 FROM alpine:3.22.1
-COPY --from=builder /api/api-server /api/api-server
+COPY --from=builder /api/app /api/app
 WORKDIR /api
-EXPOSE 3000
-CMD ["./api-server"]
+EXPOSE 8080
+CMD ["./app"]

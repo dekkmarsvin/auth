@@ -1,11 +1,8 @@
 services:
-  web:
-    image: !reset null
-    build:
-      context: ./web
+  postgresql:
+    ports:
+      - 4001:5432
 
-  api:
-    image: !reset null
-    build:
-      context: ./api
-      dockerfile: Dockerfile.debug
+  redis:
+    ports:
+      - 4002:6379

@@ -1,4 +1,4 @@
-.vscode/
-/data/
+# Deploy
+data/
 .env
 docker-compose.local.yml

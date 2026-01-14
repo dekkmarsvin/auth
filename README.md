@@ -1,39 +1,36 @@
-# Auth
+# Auth 认证服务
 
 [![GPL-3.0](https://img.shields.io/github/license/auto-novel/auth)](https://github.com/auto-novel/auth#license)
+[![cd-web](https://github.com/auto-novel/auth/actions/workflows/cd-web.yml/badge.svg)](https://github.com/auto-novel/auth/actions/workflows/cd-web.yml)
+[![cd-api](https://github.com/auto-novel/auth/actions/workflows/cd-api.yml/badge.svg)](https://github.com/auto-novel/auth/actions/workflows/cd-api.yml)
 
-提供统一登录认证（SSO）服务。
+提供统一登录认证（SSO）服务，支持用户注册、登录、令牌管理和邮箱验证等功能。
+
+## 贡献
+
+请务必在编写代码前阅读[贡献指南](https://github.com/auto-novel/auth/blob/main/CONTRIBUTING.md)，感谢所有为本项目做出贡献的人们！
 
 ## 部署
 
+> [!WARNING]
+> 注意：本项目并不是为了个人部署设计的，不保证所有功能可用和前向兼容。
+
 ```bash
-# 下载项目
-mkdir auth
+# 1. 克隆仓库
+git clone https://github.com/auto-novel/auth.git
 cd auth
-mkdir sql
-curl -sSL "https://raw.githubusercontent.com/auto-novel/auth/refs/heads/main/docker-compose.yml" -o "./docker-compose.yml"
-curl -sSL "https://raw.githubusercontent.com/auto-novel/auth/refs/heads/main/sql/init.sql" -o "./sql/init.sql"
 
-# 配置环境变量
-echo "REFRESH_TOKEN_SECRET=$(pwgen -s 64 1)" >> .env
-echo "ACCESS_TOKEN_SECRET=$(pwgen -s 64 1)" >> .env
-echo "POSTGRES_PASSWORD=$(pwgen -s 64 1)" >> .env
-echo "MAILGUN_DOMAIN=verify.fishhawk.top" >> .env
-echo "MAILGUN_APIKEY=" >> .env
+# 2. 生成环境变量配置
+cat > .env << EOF
+REFRESH_TOKEN_SECRET=$(openssl rand -base64 48)
+ACCESS_TOKEN_SECRET=$(openssl rand -base64 48)
+POSTGRES_PASSWORD=$(openssl rand -base64 48)
+MAILGUN_DOMAIN=verify.fishhawk.top
+MAILGUN_APIKEY=<mailgun_apikey>
+EOF
 
-# 启动服务
+# 3. 启动服务
 docker compose up -d
 ```
 
-## 开发
-
-### Api
-
-```bash
-make start_debug        # 启动 docker compose, debug 模式
-make start_release      # 启动 docker compose, release 模式
-make stop               # 关闭 docker compose
-
-make generate           # 生成 sql 代码
-make integration_test   # 运行集成测试
-```
+启动后，访问 http://localhost:4000 即可。

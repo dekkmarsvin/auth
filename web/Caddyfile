@@ -26,7 +26,7 @@
 	}
 
 	handle_path /api* {
-		reverse_proxy api:3000
+		reverse_proxy api:8080
 
 		@options {
 			method OPTIONS
