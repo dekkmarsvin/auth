@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_OWNER: auto-novel
+  IMAGE_OWNER: ${{ github.repository_owner }}
   IMAGE_NAME: auth-api
 
 jobs:
