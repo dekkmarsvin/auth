@@ -1,7 +1,8 @@
+.vscode/
+
 # Deploy
 data/
 .env
-docker-compose.local.yml
 
 # Api
 /api/auth
