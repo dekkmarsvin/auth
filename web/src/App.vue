@@ -35,7 +35,7 @@ root.classList.toggle('dark', theme === 'dark');
     >
       <img
         class="m-auto mt-0 mb-0 aspect-square w-1/2 max-w-[200px] select-none"
-        src="https://n.novelia.cc/files-extra/girl.6e4fe22c238737fd028247f8f0cfd4ee.webp"
+        src="https://kotoban.top/files-extra/girl.6e4fe22c238737fd028247f8f0cfd4ee.webp"
         alt=""
       />
 
