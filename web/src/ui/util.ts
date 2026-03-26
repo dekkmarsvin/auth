@@ -33,7 +33,7 @@ export const Validator = {
 export function onLoginSuccess() {
   if (window.parent === window) {
     // 如果不是在 iframe 中打开的，直接跳转到主页
-    window.location.href = 'https://kotoban.top';
+    window.location.href = 'https://books.kotoban.top';
   } else {
     // 如果是在 iframe 中打开的，发送消息给父窗口
     window.parent.postMessage({ type: 'login_success' }, '*');

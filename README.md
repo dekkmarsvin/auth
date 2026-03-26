@@ -25,7 +25,7 @@ cat > .env << EOF
 REFRESH_TOKEN_SECRET=$(openssl rand -base64 48)
 ACCESS_TOKEN_SECRET=$(openssl rand -base64 48)
 POSTGRES_PASSWORD=$(openssl rand -base64 48)
-MAILGUN_DOMAIN=verify.fishhawk.top
+MAILGUN_DOMAIN=verify.kotoban.top
 MAILGUN_APIKEY=<mailgun_apikey>
 EOF
 

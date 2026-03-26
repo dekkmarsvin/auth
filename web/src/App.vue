@@ -26,7 +26,7 @@ root.classList.toggle('dark', theme === 'dark');
 <template>
   <Toaster position="top-center" />
   <div
-    class="fixed top-0 right-0 bottom-0 left-0 overflow-y-auto bg-[url('https://books.fishhawk.top/assets/banner-BtpB_r33.webp')]"
+    class="fixed top-0 right-0 bottom-0 left-0 overflow-y-auto bg-[url('https://books.kotoban.top/assets/banner-BtpB_r33.webp')]"
   >
     <div class="absolute top-0 right-0 bottom-0 left-0 -z-10 bg-black/80"></div>
 
@@ -35,7 +35,7 @@ root.classList.toggle('dark', theme === 'dark');
     >
       <img
         class="m-auto mt-0 mb-0 aspect-square w-1/2 max-w-[200px] select-none"
-        src="https://kotoban.top/files-extra/girl.6e4fe22c238737fd028247f8f0cfd4ee.webp"
+        src="https://books.kotoban.top/files-extra/girl.6e4fe22c238737fd028247f8f0cfd4ee.webp"
         alt=""
       />
 

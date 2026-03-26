@@ -12,13 +12,13 @@ export default defineConfig(({ mode }) => {
   const apiMode = env.VITE_API_MODE;
   const apiUrl = (() => {
     if (apiMode === 'remote') {
-      return 'https://kotoban.top';
+      return 'https://books.kotoban.top';
     } else if (apiMode === 'local') {
       return 'http://localhost:3000';
     } else if (apiMode === 'native') {
       return 'http://localhost:8080';
     }
-    return 'https://kotoban.top';
+    return 'https://books.kotoban.top';
   })();
 
   const config: UserConfig = {
