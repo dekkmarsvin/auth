@@ -27,6 +27,7 @@ services:
       - RDB_PORT=6379
       - MAILGUN_DOMAIN
       - MAILGUN_APIKEY
+      - MAILGUN_API_BASE
     healthcheck:
       test: ["CMD-SHELL", "wget --spider --tries=1 --no-verbose http://localhost:8080/health || exit 1"]
       interval: 5s

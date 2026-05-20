@@ -53,10 +53,15 @@ func main() {
 		env("RDB_USER", "auth"),
 		env("RDB_PASSWORD", ""),
 	)
-	email := infra.NewEmailClient(
+	email, err := infra.NewEmailClient(
 		env("MAILGUN_DOMAIN", ""),
 		env("MAILGUN_APIKEY", ""),
+		env("MAILGUN_API_BASE", ""),
 	)
+	if err != nil {
+		slog.Error("Email client configuration error", "error", err)
+		os.Exit(1)
+	}
 
 	// repository
 	userRepo := repository.NewUserRepository(db)

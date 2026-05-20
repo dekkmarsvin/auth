@@ -2,7 +2,10 @@ package infra
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/mailgun/mailgun-go/v5"
@@ -17,13 +20,28 @@ type emailClient struct {
 	domain string
 }
 
-func NewEmailClient(domain string, apiKey string) EmailClient {
+func NewEmailClient(domain string, apiKey string, apiBase string) (EmailClient, error) {
+	domain = strings.TrimSpace(domain)
+	apiKey = strings.TrimSpace(apiKey)
+	apiBase = strings.TrimRight(strings.TrimSpace(apiBase), "/")
+
+	if domain == "" {
+		return nil, errors.New("MAILGUN_DOMAIN is required")
+	}
+	if apiKey == "" {
+		return nil, errors.New("MAILGUN_APIKEY is required")
+	}
+
 	mg := mailgun.NewMailgun(apiKey)
-	// mg.SetAPIBase(mailgun.APIBaseEU)
+	if apiBase != "" {
+		if err := mg.SetAPIBase(apiBase); err != nil {
+			return nil, fmt.Errorf("invalid MAILGUN_API_BASE: %w", err)
+		}
+	}
 	return &emailClient{
 		mg:     mg,
 		domain: domain,
-	}
+	}, nil
 }
 
 func (c *emailClient) SendEmail(to string, title string, content string) error {

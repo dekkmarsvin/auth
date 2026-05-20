@@ -27,6 +27,8 @@ ACCESS_TOKEN_SECRET=$(openssl rand -base64 48)
 POSTGRES_PASSWORD=$(openssl rand -base64 48)
 MAILGUN_DOMAIN=verify.kotoban.top
 MAILGUN_APIKEY=<mailgun_apikey>
+# 如果 Mailgun 域名创建在 EU 区域，取消下一行注释
+# MAILGUN_API_BASE=https://api.eu.mailgun.net
 EOF
 
 # 3. 启动服务
