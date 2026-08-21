@@ -18,16 +18,13 @@ docker compose up -d
 - Web: localhost:4000
 - Api: localhost:4000/api
 - Postgresql: localhost:4001
-- Redis: localhost:4002
 
 ## 前端开发
 
 基于 Vue3 / TypeScript / Vite 构建。
 
 ```bash
-cd web
 pnpm install
-pnpm prepare
 
 pnpm dev     # 启动开发服务器
 pnpm build   # 编译项目
@@ -46,15 +43,21 @@ pnpm build   # 编译项目
 编译项目
 
 ```bash
-cd api
+cd apps/api
 go mod download
 ./script/build_jet.sh # 生成 Jet SQL 代码
 go build
 ```
 
-运行集成测试
+运行单元测试
 
 ```bash
 go clean -testcache
 go test ./... -v -p 4
+```
+
+运行集成测试（需要 Docker）
+
+```bash
+./tests/run.sh -v
 ```

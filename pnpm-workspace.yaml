@@ -1,0 +1,8 @@
+packages:
+  - apps/admin
+  - apps/login
+
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - vite@8.2.2

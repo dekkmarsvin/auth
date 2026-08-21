@@ -1,0 +1,33 @@
+{
+  "name": "auth-login",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm dev:remote",
+    "dev:remote": "VITE_API_MODE=remote vite",
+    "dev:local": "VITE_API_MODE=local vite",
+    "dev:native": "VITE_API_MODE=native vite",
+    "build": "vite build && vue-tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@csstools/postcss-cascade-layers": "^5.0.2",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/tsconfig": "^0.9.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.0",
+    "unplugin-auto-import": "^20.3.0",
+    "unplugin-vue-components": "^28.8.0",
+    "vite": "^8.2.2",
+    "vite-plugin-html": "^3.2.2",
+    "vue": "^3.5.41",
+    "vue-sonner": "^2.0.9",
+    "vue-tsc": "^3.3.10"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.5",
+    "prettier": "^3.9.6"
+  }
+}
