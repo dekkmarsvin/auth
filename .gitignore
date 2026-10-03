@@ -1,7 +1,15 @@
+.vscode/
+
 # Deploy
 /data/
 .env
+.env.*
+!.env.example
 docker-compose.local.yml
+/backups/
+*.log
+.antigravity-images/
+.playwright-mcp/
 
 # Api
 /apps/api/auth

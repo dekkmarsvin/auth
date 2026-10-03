@@ -1,0 +1,246 @@
+package admin
+
+import (
+	"auth/internal/httpx"
+	"auth/internal/repository"
+	"auth/internal/service"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+)
+
+const (
+	strikePeriod    = 100 * 24 * time.Hour
+	maxStrikePoints = 3
+)
+
+type adminStrikeService struct {
+	userRepo   repository.UserRepository
+	eventRepo  repository.EventRepository
+	strikeRepo repository.StrikeRepository
+}
+
+func NewAdminStrikeService(
+	userRepo repository.UserRepository,
+	eventRepo repository.EventRepository,
+	strikeRepo repository.StrikeRepository,
+) *adminStrikeService {
+	return &adminStrikeService{
+		userRepo:   userRepo,
+		eventRepo:  eventRepo,
+		strikeRepo: strikeRepo,
+	}
+}
+
+type StrikeResponse struct {
+	ID                int64           `json:"id"`
+	Username          *string         `json:"username"`
+	OperatorUsername  *string         `json:"operatorUsername,omitempty"`
+	Reason            string          `json:"reason"`
+	Evidence          string          `json:"evidence"`
+	Point             int16           `json:"point"`
+	CreatedAt         time.Time       `json:"createdAt"`
+	RevokedAt         *time.Time      `json:"revokedAt,omitempty"`
+	RevokedByUsername *string         `json:"revokedByUsername,omitempty"`
+	Attr              json.RawMessage `json:"attr"`
+}
+
+func (s *adminStrikeService) Use(router chi.Router) {
+	router.Get("/", httpx.EH(s.GetStrikes))
+	router.Post("/", httpx.EH(s.CreateStrike))
+	router.Post("/{strikeID}/revoke", httpx.EH(s.RevokeStrike))
+}
+
+func strikeResponse(record repository.StrikeDetails) StrikeResponse {
+	return StrikeResponse{
+		ID: record.ID, Username: record.Username, OperatorUsername: record.OperatorUsername,
+		Reason: record.Reason, Evidence: record.Evidence, Point: record.Point,
+		CreatedAt: record.CreatedAt, RevokedAt: record.RevokedAt,
+		RevokedByUsername: record.RevokedByUsername, Attr: jsonObject(record.Attr),
+	}
+}
+
+func strikePage(records []repository.StrikeDetails, total int64) service.PageResponse[StrikeResponse] {
+	response := service.PageResponse[StrikeResponse]{Total: total, Items: make([]StrikeResponse, len(records))}
+	for i, record := range records {
+		response.Items[i] = strikeResponse(record)
+	}
+	return response
+}
+
+func (s *adminStrikeService) findStrikeTarget(username string) (*repository.User, error) {
+	if username == "" {
+		return nil, httpx.BadRequest("无效的用户名")
+	}
+	user, err := s.userRepo.FindByUsername(username)
+	if err != nil {
+		slog.Error("Target user lookup failed", "username", username, "error", err)
+		return nil, httpx.InternalError(err, "查询用户失败")
+	}
+	if user == nil {
+		return nil, httpx.NotFound("用户不存在")
+	}
+	return user, nil
+}
+
+func (s *adminStrikeService) createStrike(
+	adminUsername string,
+	target *repository.User,
+	reason string,
+	evidence string,
+	point int16,
+) (repository.StrikeRecord, error) {
+	if target.Role != repository.RoleMember {
+		return repository.StrikeRecord{}, httpx.Conflict("没有权限对非普通用户进行操作")
+	}
+	operator, err := s.userRepo.FindByUsername(adminUsername)
+	if err != nil {
+		return repository.StrikeRecord{}, httpx.InternalError(err, "查询操作用户失败")
+	}
+	if operator == nil {
+		return repository.StrikeRecord{}, httpx.Unauthorized("操作用户不存在")
+	}
+	if point <= 0 {
+		point = 1
+	}
+	record := repository.StrikeRecord{
+		UserID: target.ID, OperatorID: &operator.ID, Reason: reason, Evidence: evidence,
+		Point: point, CreatedAt: time.Now(), Attr: "{}",
+	}
+	restricted, err := s.strikeRepo.SaveAndRestrictUser(
+		&record,
+		time.Now().Add(-strikePeriod),
+		maxStrikePoints,
+	)
+	if err != nil {
+		slog.Error("Failed to save strike record", "username", target.Username, "error", err)
+		return repository.StrikeRecord{}, httpx.InternalError(err, "保存违规记录失败")
+	}
+	if restricted {
+		if err := s.eventRepo.Save(EventRestrictUser, &struct {
+			ActorUser  string `json:"actor_user"`
+			TargetUser string `json:"target_user"`
+			Reason     string `json:"reason"`
+		}{adminUsername, target.Username, "三振出局"}); err != nil {
+			slog.Warn("Failed to save automatic restriction event", "username", target.Username, "error", err)
+		}
+	}
+	return record, nil
+}
+
+func (s *adminStrikeService) GetStrikes(w http.ResponseWriter, r *http.Request) error {
+	query := r.URL.Query()
+	timeRange, err := service.ParseTimeRange(query)
+	if err != nil {
+		return err
+	}
+	filter := repository.StrikeFilter{
+		CreatedAfter:  timeRange.After,
+		CreatedBefore: timeRange.Before,
+	}
+	if username := query.Get("username"); username != "" {
+		target, err := s.findStrikeTarget(username)
+		if err != nil {
+			return err
+		}
+		filter.UserID = target.ID
+	}
+	if operatorUsername := query.Get("operator_username"); operatorUsername != "" {
+		operator, err := s.findStrikeTarget(operatorUsername)
+		if err != nil {
+			return err
+		}
+		filter.OperatorID = &operator.ID
+	}
+	page, err := service.ParsePage(query, service.DefaultPageSize, service.MaxPageSize)
+	if err != nil {
+		return err
+	}
+	total, err := s.strikeRepo.Count(filter)
+	if err != nil {
+		return httpx.InternalError(err, "查询违规记录失败")
+	}
+	records, err := s.strikeRepo.ListDetails(filter, page.Limit, page.Offset)
+	if err != nil {
+		return httpx.InternalError(err, "查询违规记录失败")
+	}
+	render.JSON(w, r, strikePage(records, total))
+	return nil
+}
+
+func (s *adminStrikeService) CreateStrike(w http.ResponseWriter, r *http.Request) error {
+	principal, err := httpx.AuthenticatedPrincipal(r)
+	if err != nil {
+		return err
+	}
+	req, err := httpx.Body[struct {
+		Username string `json:"username" label:"用户名" validate:"required"`
+		Reason   string `json:"reason" label:"原因" validate:"required"`
+		Evidence string `json:"evidence" label:"证据" validate:"required"`
+		Point    int16  `json:"point" label:"分值" validate:"omitempty,min=1"`
+	}](r)
+	if err != nil {
+		return err
+	}
+	target, err := s.findStrikeTarget(req.Username)
+	if err != nil {
+		return err
+	}
+	record, err := s.createStrike(principal.Username, target, req.Reason, req.Evidence, req.Point)
+	if err != nil {
+		return err
+	}
+	operatorUsername := principal.Username
+	targetUsername := target.Username
+	render.JSON(w, r, strikeResponse(repository.StrikeDetails{
+		AuthStrikeRecord: record,
+		Username:         &targetUsername,
+		OperatorUsername: &operatorUsername,
+	}))
+	return nil
+}
+
+func (s *adminStrikeService) RevokeStrike(w http.ResponseWriter, r *http.Request) error {
+	principal, err := httpx.AuthenticatedPrincipal(r)
+	if err != nil {
+		return err
+	}
+	strikeID, err := strconv.ParseInt(chi.URLParam(r, "strikeID"), 10, 64)
+	if err != nil || strikeID <= 0 {
+		return httpx.BadRequest("无效的违规记录 ID")
+	}
+	record, err := s.strikeRepo.FindDetailsByID(strikeID)
+	if err != nil {
+		return httpx.InternalError(err, "查询违规记录失败")
+	}
+	if record == nil {
+		return httpx.NotFound("违规记录不存在")
+	}
+	operator, err := s.userRepo.FindByUsername(principal.Username)
+	if err != nil {
+		return httpx.InternalError(err, "查询操作用户失败")
+	}
+	if operator == nil {
+		return httpx.Unauthorized("操作用户不存在")
+	}
+	revoked, err := s.strikeRepo.Revoke(record.ID, operator.ID, time.Now())
+	if err != nil {
+		return httpx.InternalError(err, "撤销违规记录失败")
+	}
+	if revoked == nil {
+		return httpx.Conflict("违规记录已撤销")
+	}
+	revokedByUsername := principal.Username
+	render.JSON(w, r, strikeResponse(repository.StrikeDetails{
+		AuthStrikeRecord:  *revoked,
+		Username:          record.Username,
+		OperatorUsername:  record.OperatorUsername,
+		RevokedByUsername: &revokedByUsername,
+	}))
+	return nil
+}

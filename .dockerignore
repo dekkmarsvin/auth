@@ -3,13 +3,18 @@
 # Deploy
 /data/
 .env
+.env.*
+.git/
+/backups/
+.playwright-mcp/
 
 # Api
 /apps/api/auth
 
 # Login
 dist/
-node_modules/
+**/dist/
+**/node_modules
 auto-imports.d.ts
 components.d.ts
 vite.config.ts.timestamp*

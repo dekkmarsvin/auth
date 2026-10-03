@@ -27,8 +27,7 @@ ACCESS_TOKEN_SECRET=$(openssl rand -base64 48)
 POSTGRES_PASSWORD=$(openssl rand -base64 48)
 MAILGUN_DOMAIN=verify.kotoban.top
 MAILGUN_APIKEY=<mailgun_apikey>
-# 如果 Mailgun 域名创建在 EU 区域，取消下一行注释
-# MAILGUN_API_BASE=https://api.eu.mailgun.net
+# 若使用 EU 區域，設定 MAILGUN_API_BASE=https://api.eu.mailgun.net
 EOF
 
 # 3. 启动服务
@@ -36,3 +35,12 @@ docker compose up -d
 ```
 
 启动后，访问 http://localhost:4000 即可。
+
+既有安裝升級前，保留原本 `.env` 中的 token secrets 和 PostgreSQL 資料目錄。
+在更新 API 映像前執行 `bash script/apply_db_schema.sh`；腳本先建立並檢查
+`backups/` 中的私有 PostgreSQL 備份，再於交易中加入新版管理及處罰提醒需要的
+資料表與欄位。舊 `status` 欄位和帳號、密碼、事件、處罰資料均保留。
+若存在尚未對應撤銷時間的舊撤銷處罰，升級會停止，需先確認歷史資料的遷移方式。
+
+新版管理介面位於 `https://auth.kotoban.top/admin/`。舊 refresh cookie 可繼續
+換發帶 `uid` 的新版 access token；保留 secrets 即可避免重建帳號或重設密碼。

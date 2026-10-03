@@ -27,15 +27,66 @@ type UserFilter struct {
 	CreatedAfter  time.Time
 }
 
+type UserSummary struct {
+	TotalUsers      int64
+	RestrictedUsers int64
+	BannedUsers     int64
+}
+
 type UserRepository interface {
 	List(filter UserFilter, size int64, skip int64) ([]User, error)
 	Count(filter UserFilter) (int64, error)
+	CountCreated(startInclusive time.Time, endExclusive time.Time) (int64, error)
+	Summary() (UserSummary, error)
 	FindByUsername(username string) (*User, error)
 	FindByEmail(email string) (*User, error)
 	Save(user *User) error
 	UpdateLastLogin(user *User) error
 	UpdateHashedPassword(user *User) error
 	UpdateRole(user *User) error
+}
+
+func (r *userRepository) CountCreated(startInclusive time.Time, endExclusive time.Time) (int64, error) {
+	stmt := SELECT(COUNT(STAR)).
+		FROM(AuthUser).
+		WHERE(
+			AuthUser.CreatedAt.GT_EQ(TimestampzT(startInclusive)).
+				AND(AuthUser.CreatedAt.LT(TimestampzT(endExclusive))),
+		)
+
+	var dest struct{ Count int64 }
+	err := stmt.Query(r.db, &dest)
+	return dest.Count, err
+}
+
+func (r *userRepository) Summary() (UserSummary, error) {
+	restrictedUsers := COALESCE(
+		SUM(
+			CASE().
+				WHEN(AuthUser.Role.EQ(String(RoleRestricted))).
+				THEN(Int32(1)).
+				ELSE(Int32(0)),
+		),
+		Int(0),
+	).AS("UserSummary.RestrictedUsers")
+	bannedUsers := COALESCE(
+		SUM(
+			CASE().
+				WHEN(AuthUser.Role.EQ(String(RoleBanned))).
+				THEN(Int32(1)).
+				ELSE(Int32(0)),
+		),
+		Int(0),
+	).AS("UserSummary.BannedUsers")
+	stmt := SELECT(
+		COUNT(STAR).AS("UserSummary.TotalUsers"),
+		restrictedUsers,
+		bannedUsers,
+	).FROM(AuthUser)
+
+	var summary UserSummary
+	err := stmt.Query(r.db, &summary)
+	return summary, err
 }
 
 type userRepository struct {
@@ -65,9 +116,8 @@ func (filter UserFilter) exp() BoolExpression {
 	}
 	if len(exps) == 0 {
 		return RawBool("TRUE")
-	} else {
-		return AND(exps...)
 	}
+	return AND(exps...)
 }
 
 func (r *userRepository) List(filter UserFilter, size int64, skip int64) ([]User, error) {
@@ -137,10 +187,10 @@ func (r *userRepository) FindByEmail(email string) (*User, error) {
 
 func (r *userRepository) Save(user *User) error {
 	stmt := AuthUser.INSERT(AuthUser.MutableColumns).
-		MODEL(user)
+		MODEL(user).
+		RETURNING(AuthUser.AllColumns)
 
-	_, err := stmt.Exec(r.db)
-	return err
+	return stmt.Query(r.db, user)
 }
 
 func (r *userRepository) UpdateLastLogin(user *User) error {

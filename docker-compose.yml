@@ -4,7 +4,11 @@ services:
     ports:
       - 4000:80
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider --tries=1 --no-verbose http://localhost || exit 1"]
+      test:
+        [
+          'CMD-SHELL',
+          'wget --spider --tries=1 --no-verbose http://localhost || exit 1',
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,7 +29,11 @@ services:
       - MAILGUN_APIKEY
       - MAILGUN_API_BASE
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider --tries=1 --no-verbose http://localhost:8080/health || exit 1"]
+      test:
+        [
+          'CMD-SHELL',
+          'wget --spider --tries=1 --no-verbose http://localhost:8080/health || exit 1',
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -39,9 +47,9 @@ services:
       - POSTGRES_DB=auth
     volumes:
       - ./data/postgresql:/var/lib/postgresql/data
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      test: ['CMD-SHELL', 'pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}']
       interval: 5s
       timeout: 5s
       retries: 5

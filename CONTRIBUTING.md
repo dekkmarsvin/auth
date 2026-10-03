@@ -15,6 +15,7 @@ docker compose up -d
 ```
 
 服务启动后，可通过以下地址访问：
+
 - Web: localhost:4000
 - Api: localhost:4000/api
 - Postgresql: localhost:4001
@@ -59,5 +60,5 @@ go test ./... -v -p 4
 运行集成测试（需要 Docker）
 
 ```bash
-./tests/run.sh -v
+./script/test_integration.sh -v
 ```

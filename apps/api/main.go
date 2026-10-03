@@ -1,10 +1,12 @@
 package main
 
 import (
+	"auth/internal/httpx"
 	"auth/internal/infra"
 	"auth/internal/repository"
-	"auth/internal/service"
-	"auth/internal/util"
+	adminservice "auth/internal/service/admin"
+	authservice "auth/internal/service/auth"
+	meservice "auth/internal/service/me"
 	"context"
 	"log/slog"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httplog/v3"
 )
 
 func env(key, fallback string) string {
@@ -24,13 +27,11 @@ func env(key, fallback string) string {
 }
 
 func envInt(key string, fallback int) int {
-	if value, ok := os.LookupEnv(key); ok {
-		intValue, err := strconv.Atoi(value)
-		if err == nil {
-			return intValue
-		}
+	value, err := strconv.Atoi(env(key, ""))
+	if err != nil {
+		return fallback
 	}
-	return fallback
+	return value
 }
 
 func runOtpCleanup(ctx context.Context, repo repository.OtpRepository, interval time.Duration) {
@@ -64,8 +65,19 @@ func main() {
 	slog.SetDefault(logger)
 
 	// util
-	util.RefreshTokenSecret = env("REFRESH_TOKEN_SECRET", "secret")
-	util.AccessTokenSecret = env("ACCESS_TOKEN_SECRET", "secret")
+	refreshTokenSecret := env("REFRESH_TOKEN_SECRET", "")
+	accessTokenSecret := env("ACCESS_TOKEN_SECRET", "")
+	if len(refreshTokenSecret) < 32 || len(accessTokenSecret) < 32 {
+		slog.Error("Token secrets must each contain at least 32 characters")
+		return
+	}
+	if refreshTokenSecret == accessTokenSecret {
+		slog.Error("Refresh and access token secrets must be different")
+		return
+	}
+	httpx.AccessTokenSecret = accessTokenSecret
+	infra.RefreshTokenSecret = refreshTokenSecret
+	infra.AccessTokenSecret = accessTokenSecret
 
 	// infra
 	db := infra.NewSqlDb(
@@ -75,6 +87,8 @@ func main() {
 		env("DB_PASSWORD", ""),
 		env("DB_NAME", "auth"),
 	)
+	defer db.Close()
+
 	email, err := infra.NewEmailClient(
 		env("MAILGUN_DOMAIN", ""),
 		env("MAILGUN_APIKEY", ""),
@@ -82,13 +96,19 @@ func main() {
 	)
 	if err != nil {
 		slog.Error("Email client configuration error", "error", err)
-		os.Exit(1)
+		return
 	}
 
 	// repository
 	userRepo := repository.NewUserRepository(db)
 	eventRepo := repository.NewEventRepository(db)
 	otpRepo := repository.NewOtpRepository(db)
+	settingRepo := repository.NewSettingRepository(db)
+	strikeRepo := repository.NewStrikeRepository(db)
+	if err := settingRepo.Load(); err != nil {
+		slog.Error("Failed to load auth settings", "error", err)
+		return
+	}
 	otpCleanupCtx, stopOtpCleanup := context.WithCancel(context.Background())
 	defer stopOtpCleanup()
 	go runOtpCleanup(
@@ -98,16 +118,24 @@ func main() {
 	)
 
 	// service
-	authService := service.NewAuthService(
+	authService := authservice.NewAuthService(
 		userRepo,
 		eventRepo,
 		otpRepo,
 		email,
+		settingRepo,
 	)
-	adminService := service.NewAdminService(
+	adminService := adminservice.NewAdminService(
 		userRepo,
 		eventRepo,
+		settingRepo,
 	)
+	adminStrikeService := adminservice.NewAdminStrikeService(
+		userRepo,
+		eventRepo,
+		strikeRepo,
+	)
+	meService := meservice.NewMeService(userRepo, strikeRepo)
 
 	// router
 	router := chi.NewRouter()
@@ -118,12 +146,26 @@ func main() {
 		w.Write([]byte("OK\n"))
 	})
 	router.Route("/v1", func(router chi.Router) {
-		router.Use(util.RequestLogger())
+		router.Use(httplog.RequestLogger(slog.Default(), &httplog.Options{
+			Level:         slog.LevelInfo,
+			Schema:        httplog.SchemaECS,
+			RecoverPanics: true,
+		}))
 		router.Route("/auth", authService.Use)
-		router.Route("/admin", adminService.Use)
+		router.Route("/admin", func(router chi.Router) {
+			router.Use(httpx.RequireAdmin)
+			adminService.Use(router)
+			router.Route("/strikes", adminStrikeService.Use)
+		})
+		router.Route("/me", func(router chi.Router) {
+			router.Use(httpx.RequireAccessToken)
+			meService.Use(router)
+		})
 	})
 
 	// start server
 	slog.Info("Listening on localhost:8080...")
-	http.ListenAndServe(":8080", router)
+	if err := http.ListenAndServe(":8080", router); err != nil {
+		slog.Error("HTTP server failed", "error", err)
+	}
 }
