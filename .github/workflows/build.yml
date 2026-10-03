@@ -10,10 +10,11 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - run: corepack enable
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
       - run: pnpm --filter @novelia/auth-api --filter @novelia/web-kit test
