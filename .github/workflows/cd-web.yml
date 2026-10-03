@@ -11,6 +11,8 @@ on:
       - apps/admin/**
       - packages/auth-api/**
       - packages/admin-kit/**
+      - packages/web-kit/**
+      - .dockerignore
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -53,6 +55,7 @@ jobs:
             VITE_COMMIT_SHA=${{ github.sha }}
             VITE_BUILD_TIME=${{ steps.build_metadata.outputs.build_time }}
           tags: ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:latest
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
