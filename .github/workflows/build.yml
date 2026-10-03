@@ -1,0 +1,27 @@
+name: Build
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm --filter @novelia/auth-api --filter @novelia/web-kit test
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - run: go test ./...
+        working-directory: apps/api
+      - run: bash apps/api/script/test_integration.sh
+      - run: bash script/test_schema_upgrade.sh

@@ -1,8 +1,10 @@
 packages:
   - apps/admin
   - apps/login
+  - packages/*
 
 allowBuilds:
   esbuild: true
+  vue-demi: true
 minimumReleaseAgeExclude:
   - vite@8.2.2

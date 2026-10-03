@@ -1,9 +1,66 @@
+<script setup lang="ts">
+import {
+  DashboardOutlined,
+  GavelOutlined,
+  HistoryOutlined,
+  PeopleOutlined,
+  SettingsOutlined,
+} from '@vicons/material';
+import {
+  AdminKitApp,
+  AdminKitLayout,
+  type AdminKitMenuOption,
+} from '@novelia/admin-kit';
+import { NIcon } from 'naive-ui';
+import { h, type Component } from 'vue';
+import { RouterView, useRoute } from 'vue-router';
+
+const route = useRoute();
+
+function renderIcon(icon: Component) {
+  return () => h(NIcon, null, { default: () => h(icon) });
+}
+
+const menuOptions: AdminKitMenuOption[] = [
+  {
+    label: '概览',
+    key: '/overview',
+    to: '/overview',
+    icon: renderIcon(DashboardOutlined),
+  },
+  {
+    label: '用户管理',
+    key: '/users',
+    to: '/users',
+    icon: renderIcon(PeopleOutlined),
+  },
+  {
+    label: '处罚管理',
+    key: '/strikes',
+    to: '/strikes',
+    icon: renderIcon(GavelOutlined),
+  },
+  {
+    label: '事件记录',
+    key: '/events',
+    to: '/events',
+    icon: renderIcon(HistoryOutlined),
+  },
+  {
+    label: '系统设置',
+    key: '/settings',
+    to: '/settings',
+    icon: renderIcon(SettingsOutlined),
+  },
+];
+</script>
+
 <template>
-  <main class="grid min-h-screen place-items-center bg-slate-50 p-8 text-slate-900">
-    <section class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-900/5">
-      <p class="mb-2 text-sm font-medium text-emerald-600">Auth Admin</p>
-      <h1 class="text-2xl font-semibold tracking-tight">管理后台</h1>
-      <p class="mt-3 leading-7 text-slate-600">管理后台正在建设中。</p>
-    </section>
-  </main>
+  <AdminKitApp>
+    <AdminKitLayout
+      v-if="route.meta.requiresAuth"
+      :menu-options="menuOptions"
+    />
+    <RouterView v-else />
+  </AdminKitApp>
 </template>

@@ -1,5 +1,34 @@
 import { createApp } from 'vue';
-import './style.css';
 import App from './App.vue';
 
-createApp(App).mount('#app');
+import { createAdminAuthGuard, createAdminKit } from '@novelia/admin-kit';
+
+import { adminApiKey, createAdminApi } from './api';
+import router from './router';
+
+const adminKit = createAdminKit({
+  auth: {
+    app: 'auth',
+    url: __AUTH_URL__,
+  },
+  brand: 'Auth',
+  repository: {
+    url: 'https://github.com/dekkmarsvin/auth',
+    buildTime: __BUILD_TIME__,
+    commitSha: __COMMIT_SHA__,
+  },
+});
+
+router.beforeEach(createAdminAuthGuard(adminKit));
+
+createApp(App)
+  .provide(
+    adminApiKey,
+    createAdminApi(
+      adminKit.api,
+      new URL('api/v1/', adminKit.options.auth.url).toString(),
+    ),
+  )
+  .use(adminKit)
+  .use(router)
+  .mount('#app');

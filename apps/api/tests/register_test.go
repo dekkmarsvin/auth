@@ -3,8 +3,10 @@
 package tests
 
 import (
+	"auth/internal/hash"
+	"auth/internal/infra"
 	"auth/internal/repository"
-	"auth/internal/util"
+	authservice "auth/internal/service/auth"
 	"crypto/sha256"
 	"encoding/json"
 	"io"
@@ -40,22 +42,22 @@ func TestAuthRegisterBadRequestCases(t *testing.T) {
 		{
 			name:    "InvalidEmail",
 			modify:  func(r *reqRegister) { r.Email = "not-an-email" },
-			message: "邮箱必须是有效的邮箱地址",
+			message: "邮箱必须是一个有效的邮箱",
 		},
 		{
 			name:    "ShortUsername",
 			modify:  func(r *reqRegister) { r.Username = "a" },
-			message: "用户名至少需要2个字符",
+			message: "用户名长度必须至少为2个字符",
 		},
 		{
 			name:    "ShortUsernameUnicode",
 			modify:  func(r *reqRegister) { r.Username = "你" },
-			message: "用户名至少需要2个字符",
+			message: "用户名长度必须至少为2个字符",
 		},
 		{
 			name:    "LongUsername",
 			modify:  func(r *reqRegister) { r.Username = strings.Repeat("a", 17) },
-			message: "用户名不能超过16个字符",
+			message: "用户名长度不能超过16个字符",
 		},
 		{
 			name:    "UsernameWithLeadingSpace",
@@ -70,22 +72,22 @@ func TestAuthRegisterBadRequestCases(t *testing.T) {
 		{
 			name:    "ShortPassword",
 			modify:  func(r *reqRegister) { r.Password = "short" },
-			message: "密码至少需要8个字符",
+			message: "密码长度必须至少为8个字符",
 		},
 		{
 			name:    "LongPassword",
 			modify:  func(r *reqRegister) { r.Password = strings.Repeat("a", 101) },
-			message: "密码不能超过100个字符",
+			message: "密码长度不能超过100个字符",
 		},
 		{
 			name:    "InvalidVerifyOtp",
 			modify:  func(r *reqRegister) { r.Otp = "abcdef" },
-			message: "验证码必须是数字",
+			message: "验证码必须是一个有效的数值",
 		},
 		{
 			name:    "ShortOtp",
 			modify:  func(r *reqRegister) { r.Otp = "123" },
-			message: "验证码长度必须为6位",
+			message: "验证码长度必须是6个字符",
 		},
 	}
 
@@ -106,7 +108,7 @@ func TestAuthRegisterSuccess(t *testing.T) {
 	resetDatabase(t)
 
 	req := reqRegister{
-		App:      "integration-test",
+		App:      infra.AppAuth,
 		Username: "new-user",
 		Password: "Password123!",
 		Email:    "new-user@example.com",
@@ -135,7 +137,7 @@ func TestAuthRegisterSuccess(t *testing.T) {
 		t.Fatalf("expected member role, got %#v", claims["role"])
 	}
 
-	refreshCookie := findCookie(resp, util.RefreshTokenCookieName)
+	refreshCookie := findCookie(resp, authservice.RefreshTokenCookieName)
 	if refreshCookie == nil {
 		t.Fatal("expected refresh token cookie")
 	}
@@ -150,13 +152,27 @@ func TestAuthRegisterSuccess(t *testing.T) {
 	if user == nil {
 		t.Fatal("registered user was not persisted")
 	}
+	if claims["uid"] != float64(user.ID) {
+		t.Fatalf("expected user ID %d, got %#v", user.ID, claims["uid"])
+	}
 	if user.Email != req.Email || user.Role != repository.RoleMember {
 		t.Fatalf("unexpected registered user: %#v", user)
 	}
 	if user.Password == req.Password {
 		t.Fatal("password was stored in plaintext")
 	}
-	validation, err := util.ValidateHash(user.Password, req.Password)
+	var otpCount int
+	if err := testDB.QueryRow(
+		"SELECT count(*) FROM auth_otp WHERE email = $1 AND type = $2",
+		req.Email,
+		repository.OtpVerify,
+	).Scan(&otpCount); err != nil {
+		t.Fatalf("count OTP records: %v", err)
+	}
+	if otpCount != 0 {
+		t.Fatalf("expected successful OTP to be consumed, found %d records", otpCount)
+	}
+	validation, err := hash.ValidateHash(user.Password, req.Password)
 	if err != nil || !validation.Valid {
 		t.Fatalf("stored password hash does not validate: %v", err)
 	}
@@ -222,7 +238,7 @@ func TestAuthRegisterRejectsInvalidOtp(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			resetDatabase(t)
 			req := reqRegister{
-				App:      "integration-test",
+				App:      infra.AppAuth,
 				Username: "otp-user",
 				Password: "Password123!",
 				Email:    "otp-user@example.com",
@@ -251,7 +267,7 @@ func TestAuthRegisterConflicts(t *testing.T) {
 	resetDatabase(t)
 
 	first := reqRegister{
-		App:      "integration-test",
+		App:      infra.AppAuth,
 		Username: "existing-user",
 		Password: "Password123!",
 		Email:    "existing@example.com",
@@ -270,16 +286,34 @@ func TestAuthRegisterConflicts(t *testing.T) {
 			t, http.MethodPost, "/v1/auth/register", req,
 			http.StatusConflict, "用户名已被占用",
 		)
+		assertOtpExists(t, req.Email, repository.OtpVerify)
 	})
 
 	t.Run("Email", func(t *testing.T) {
 		req := first
 		req.Username = "different-user"
+		req.Otp = prepareOtp(t, req.Email)
 		SendRequestAndExpectError(
 			t, http.MethodPost, "/v1/auth/register", req,
 			http.StatusConflict, "邮箱已被占用",
 		)
+		assertOtpExists(t, req.Email, repository.OtpVerify)
 	})
+}
+
+func assertOtpExists(t *testing.T, email, otpType string) {
+	t.Helper()
+	var count int
+	if err := testDB.QueryRow(
+		"SELECT count(*) FROM auth_otp WHERE email = $1 AND type = $2",
+		email,
+		otpType,
+	).Scan(&count); err != nil {
+		t.Fatalf("count OTP records: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected OTP to remain usable after failed operation, found %d records", count)
+	}
 }
 
 func prepareOtp(t *testing.T, email string) string {

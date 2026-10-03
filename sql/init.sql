@@ -1,3 +1,5 @@
+begin;
+
 create table if not exists auth_user
 (
     id         bigint generated always as identity primary key,
@@ -9,6 +11,7 @@ create table if not exists auth_user
     last_login timestamptz  not null default current_timestamp,
     attr       jsonb        not null default '{}'::jsonb
 );
+
 create table if not exists auth_event
 (
     id         bigint generated always as identity primary key,
@@ -16,6 +19,11 @@ create table if not exists auth_event
     detail     jsonb        not null default '{}'::jsonb,
     created_at timestamptz  not null default current_timestamp
 );
+
+create index if not exists idx_auth_event_auth_activity_created_at
+    on auth_event (created_at)
+    where action in ('login', 'register');
+
 create table if not exists auth_otp
 (
     email      varchar(255) not null,
@@ -25,6 +33,14 @@ create table if not exists auth_otp
     created_at timestamptz  not null default current_timestamp,
     primary key (email, type)
 );
+
+create table if not exists auth_setting
+(
+    key        varchar(128) primary key,
+    value      jsonb       not null,
+    updated_at timestamptz not null default current_timestamp
+);
+
 create table if not exists auth_strike_record
 (
     id          bigint generated always as identity primary key,
@@ -33,15 +49,57 @@ create table if not exists auth_strike_record
     reason      text        not null,
     evidence    text        not null,
     point       smallint    not null default 1,
-    status      smallint    not null default 0,
     created_at  timestamptz not null default current_timestamp,
+    revoked_at  timestamptz,
+    revoked_by  bigint,
     attr        jsonb       not null default '{}'::jsonb
 );
 
-create index if not exists idx_user_id on auth_strike_record (user_id);
-create index if not exists idx_created_at on auth_strike_record (created_at);
-create index if not exists idx_type_status on auth_strike_record (status);
+-- Older fork installations retain status instead of the upstream revocation
+-- fields. Preserve that column and every record while adding the new fields.
+alter table auth_strike_record
+    add column if not exists revoked_at timestamptz,
+    add column if not exists revoked_by bigint;
 
-comment on table auth_strike_record is '用户违规记录表';
-comment on column auth_strike_record.point is '扣分点数,默认1分';
-comment on column auth_strike_record.status is '处罚状态: 0-生效中, 1-已撤销';
+-- The old status does not retain a revocation time or operator. Stop when those
+-- records need a separate migration instead of inventing historical values.
+do $$
+declare
+    unmapped_legacy_records bigint;
+begin
+    if exists (
+        select 1 from information_schema.columns
+        where table_schema = current_schema()
+          and table_name = 'auth_strike_record'
+          and column_name = 'status'
+    ) then
+        execute 'select count(*) from auth_strike_record
+                 where status <> 0 and revoked_at is null'
+            into unmapped_legacy_records;
+        if unmapped_legacy_records > 0 then
+            raise exception 'Legacy revoked penalties require an explicit historical migration';
+        end if;
+    end if;
+end $$;
+
+comment on table auth_strike_record is '用户违规记录';
+comment on column auth_strike_record.operator_id is '记录违规的操作人用户 ID';
+comment on column auth_strike_record.point is '违规扣分，默认为 1 分';
+comment on column auth_strike_record.revoked_at is '撤销时间';
+comment on column auth_strike_record.revoked_by is '撤销操作人用户 ID';
+
+create index if not exists idx_auth_strike_record_user_id
+    on auth_strike_record (user_id);
+
+create index if not exists idx_auth_strike_record_created_at
+    on auth_strike_record (created_at);
+
+alter table auth_user
+    add column if not exists last_seen_strike_id bigint not null default 0;
+
+comment on column auth_user.last_seen_strike_id is '用户已确认查看的处罚 ID，0 表示全部未读';
+
+create index if not exists idx_auth_strike_record_user_id_id
+    on auth_strike_record (user_id, id);
+
+commit;
