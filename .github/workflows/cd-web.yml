@@ -10,7 +10,6 @@ on:
       - apps/login/**
       - apps/admin/**
       - packages/auth-api/**
-      - packages/admin-kit/**
       - packages/web-kit/**
       - .dockerignore
       - package.json
