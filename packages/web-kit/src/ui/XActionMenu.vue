@@ -8,18 +8,12 @@ import {
 } from 'reka-ui';
 
 import XButton from './XButton.vue';
+import type { XActionMenuProps } from './types';
 
-withDefaults(
-  defineProps<{
-    side?: 'top' | 'right' | 'bottom' | 'left';
-    align?: 'start' | 'center' | 'end';
-    compact?: boolean;
-  }>(),
-  {
-    side: 'bottom',
-    align: 'end',
-  },
-);
+withDefaults(defineProps<XActionMenuProps>(), {
+  side: 'bottom',
+  align: 'end',
+});
 </script>
 
 <template>
@@ -43,7 +37,7 @@ withDefaults(
         :align="align"
         :side-offset="6"
         :collision-padding="8"
-        class="z-30 rounded-md border border-border bg-surface p-1 shadow-xl outline-none"
+        class="floating-panel z-40 p-1 outline-none"
         :class="compact ? 'w-32' : 'w-40'"
       >
         <slot />

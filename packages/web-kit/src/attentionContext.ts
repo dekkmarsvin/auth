@@ -1,17 +1,10 @@
-import type { AttentionStatus, AuthApi } from '@novelia/auth-api';
-import {
-  inject,
-  readonly,
-  ref,
-  type DeepReadonly,
-  type InjectionKey,
-  type Ref,
-} from 'vue';
+import type { AttentionStatus, AuthApi, AuthUser } from '@novelia/auth-api';
+import { readonly, ref, type DeepReadonly, type Ref } from 'vue';
 
-interface AttentionContext {
-  status: DeepReadonly<Ref<AttentionStatus | undefined>>;
-  refresh(): Promise<void>;
-  updateStrikeReadState(throughId: number): Promise<void>;
+export interface AttentionContext {
+  readonly status: DeepReadonly<Ref<AttentionStatus | undefined>>;
+  readonly refresh: () => Promise<void>;
+  readonly updateStrikeReadState: (throughId: number) => Promise<void>;
 }
 
 interface AttentionSession {
@@ -25,10 +18,16 @@ type AttentionApi = Pick<
   'watchUser' | 'getAttentionStatus' | 'updateMyStrikeReadState'
 >;
 
+const POLL_INTERVAL = 60 * 1000;
+
 export function createAttention(api: AttentionApi) {
   const status = ref<AttentionStatus>();
   let session: AttentionSession | undefined;
   let disposed = false;
+  let started = false;
+  let timer: number | undefined;
+  let unsubscribe: (() => void) | undefined;
+  let visibilityTarget: Document | undefined;
 
   async function synchronize(current: AttentionSession) {
     while (!disposed && session === current) {
@@ -82,45 +81,67 @@ export function createAttention(api: AttentionApi) {
     return refresh();
   }
 
-  const unsubscribe = api.watchUser((user) => {
-    if (disposed || user?.id === session?.userId) return;
-    session = user ? { userId: user.id } : undefined;
-    status.value = undefined;
-    if (session) void refresh();
-  });
+  function stopTimer() {
+    if (timer === undefined) return;
+    globalThis.clearInterval(timer);
+    timer = undefined;
+  }
+
+  /** 只在已登录时保留轮询定时器。 */
+  function syncTimer() {
+    if (started && !disposed && session) {
+      timer ??= globalThis.setInterval(refreshWhenVisible, POLL_INTERVAL);
+      return;
+    }
+    stopTimer();
+  }
 
   function refreshWhenVisible() {
+    if (typeof document === 'undefined') return;
     if (document.visibilityState === 'visible') void refresh();
   }
 
-  document.addEventListener('visibilitychange', refreshWhenVisible);
-  const timer = globalThis.setInterval(refreshWhenVisible, 60 * 1000);
+  function handleUser(user: AuthUser | undefined) {
+    if (disposed || user?.id === session?.userId) return;
+    session = user ? { userId: user.id } : undefined;
+    status.value = undefined;
+    syncTimer();
+    if (session) void refresh();
+  }
 
-  const context: AttentionContext = {
+  /** 订阅会话并挂上定时器与可见性监听。由 kit.start 触发。 */
+  function start() {
+    if (started || disposed) return;
+    started = true;
+    if (typeof document !== 'undefined') {
+      visibilityTarget = document;
+      visibilityTarget.addEventListener('visibilitychange', refreshWhenVisible);
+    }
+    unsubscribe = api.watchUser(handleUser);
+    syncTimer();
+  }
+
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    started = false;
+    session = undefined;
+    status.value = undefined;
+    stopTimer();
+    visibilityTarget?.removeEventListener(
+      'visibilitychange',
+      refreshWhenVisible,
+    );
+    visibilityTarget = undefined;
+    unsubscribe?.();
+    unsubscribe = undefined;
+  }
+
+  const context: AttentionContext = Object.freeze({
     status: readonly(status),
     refresh,
     updateStrikeReadState,
-  };
+  });
 
-  return {
-    context,
-    dispose() {
-      disposed = true;
-      session = undefined;
-      globalThis.clearInterval(timer);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-      unsubscribe();
-    },
-  };
-}
-
-export const attentionKey: InjectionKey<AttentionContext> =
-  Symbol('web-kit-attention');
-
-export function useAttention() {
-  const attention = inject(attentionKey);
-  if (!attention) {
-    throw new Error('Web kit is not installed. Call app.use(webKit).');
-  }
-  return attention;
+  return { context, start, dispose };
 }

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import 'vue-sonner/style.css';
 import { Toaster } from 'vue-sonner';
+import { loadTurnstileScript } from './data/turnstile';
+
+// Start loading before the user opens a form; the widget retries on failure.
+void loadTurnstileScript().catch(() => {});
 
 const type = ref('登录');
 
@@ -25,14 +29,18 @@ root.classList.toggle('dark', theme === 'dark');
 
 <template>
   <Toaster position="top-center" />
+  <!--
+    One layout at every width: a full-page surface with a centered content
+    column. The page is shown either on its own or inside a full-page iframe
+    (web-kit / admin-kit), so the old viewport-based card on wide screens only
+    made the embedded and standalone renderings diverge.
+  -->
+  <!-- Use an explicit scrollport when the keyboard reduces the viewport.
+       Keep the content at its natural height so every field remains reachable. -->
   <div
-    class="fixed top-0 right-0 bottom-0 left-0 overflow-y-auto bg-[url('https://books.kotoban.top/assets/banner-BtpB_r33.webp')]"
+    class="bg-surface flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain px-8 pt-[10vh] pb-8"
   >
-    <div class="absolute top-0 right-0 bottom-0 left-0 -z-10 bg-black/80"></div>
-
-    <div
-      class="bg-surface m-auto flex h-full w-full flex-col gap-4 pt-[10vh] pr-8 pb-8 pl-8 sm:mt-[10vh] sm:h-auto sm:w-md sm:rounded-2xl sm:p-8"
-    >
+    <div class="mx-auto flex w-full max-w-md shrink-0 flex-col gap-4">
       <img
         class="m-auto mt-0 mb-0 aspect-square w-1/2 max-w-[200px] select-none"
         src="https://books.kotoban.top/files-extra/girl.6e4fe22c238737fd028247f8f0cfd4ee.webp"
@@ -41,16 +49,20 @@ root.classList.toggle('dark', theme === 'dark');
 
       <Tabs :tabs="['登录', '注册']" v-model="type" />
 
+      <!--
+        The forms stay mounted and are toggled with `v-show`, so switching tabs
+        does not tear down their Turnstile widget and force a new challenge.
+      -->
       <FormLogin
-        v-if="type === '登录'"
+        v-show="type === '登录'"
         :app="app"
         @openResetPasswordForm="type = '重置密码'"
       />
 
-      <FormRegister v-else-if="type === '注册'" :app="app" />
+      <FormRegister v-show="type === '注册'" :app="app" />
 
       <FormResetPassword
-        v-else-if="type === '重置密码'"
+        v-show="type === '重置密码'"
         @openLoginForm="type = '登录'"
       />
     </div>

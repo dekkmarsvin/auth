@@ -17,7 +17,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
-      - run: pnpm --filter @novelia/auth-api --filter @novelia/web-kit test
+      - run: pnpm -r --if-present test
       - uses: actions/setup-go@v6
         with:
           go-version-file: apps/api/go.mod
@@ -26,3 +26,4 @@ jobs:
         working-directory: apps/api
       - run: bash apps/api/script/test_integration.sh
       - run: bash script/test_schema_upgrade.sh
+      - run: bash script/test_turnstile_config.sh

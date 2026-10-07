@@ -9,9 +9,10 @@ interface Emits {
 
 const emits = defineEmits<Emits>();
 
-const password = ref('');
+const step = ref<'email' | 'password'>('email');
 const email = ref('');
 const otp = ref('');
+const password = ref('');
 const loading = ref(false);
 
 function resetPassword(event: MouseEvent) {
@@ -37,29 +38,43 @@ function resetPassword(event: MouseEvent) {
 </script>
 
 <template>
-  <form class="flex w-auto flex-col gap-2" novalidate>
-    <FormItem :rules="Validator.validateEmail">
-      <Input placeholder="邮箱" v-model="email" />
-    </FormItem>
+  <div class="flex w-auto flex-col gap-4">
+    <StepIndicator
+      :steps="['验证邮箱', '设置新密码']"
+      :current="step === 'email' ? 1 : 2"
+    />
 
-    <FormItem :rules="Validator.validateOtpResetPassword">
-      <Input round="left" placeholder="邮箱验证码" v-model="otp" />
-      <OtpButton
-        :email="email"
-        type="reset_password"
-        round="right"
-        class="flex-1/2"
-      />
-    </FormItem>
+    <!--
+      Both steps stay mounted (`v-show`) so returning to step 1 keeps the same
+      Turnstile widget instead of rendering a new one.
+    -->
+    <StepEmailOtp
+      v-show="step === 'email'"
+      v-model:email="email"
+      v-model:otp="otp"
+      type="reset_password"
+      action="password_reset"
+      @next="step = 'password'"
+    />
 
-    <FormItem :rules="Validator.validatePassword">
-      <Input type="password" placeholder="新密码" v-model="password" />
-    </FormItem>
+    <form
+      v-show="step === 'password'"
+      class="flex w-auto flex-col gap-2"
+      novalidate
+    >
+      <FormItem :rules="Validator.validatePassword">
+        <Input type="password" placeholder="新密码" v-model="password" />
+      </FormItem>
 
-    <p class="mt-1 text-left text-xs text-[#8d8d8d] select-none">
-      * 收不到验证邮件的话，记得看垃圾箱
-    </p>
+      <button
+        type="button"
+        class="text-primary cursor-pointer text-left text-sm font-bold"
+        @click="step = 'email'"
+      >
+        ← 返回上一步
+      </button>
 
-    <Button text="重置密码" :loading="loading" @click="resetPassword" />
-  </form>
+      <Button text="重置密码" :loading="loading" @click="resetPassword" />
+    </form>
+  </div>
 </template>

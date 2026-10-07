@@ -5,17 +5,18 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { useWebKit } from '../context';
-import { useAttention } from '../attentionContext';
+import { useWebKitLayout } from '../layoutContext';
 import XAsyncContent from '../ui/XAsyncContent.vue';
 import XPagination from '../ui/XPagination.vue';
+import XTime from '../ui/XTime.vue';
 import { getApiErrorMessage } from '../utils/apiError';
 
 const PAGE_SIZE = 20;
 
 const route = useRoute();
 const router = useRouter();
-const { api: authApi, profile: authUser } = useWebKit();
-const { updateStrikeReadState } = useAttention();
+const { api: authApi, attention, whoami } = useWebKit();
+const { scrollToTop } = useWebKitLayout();
 const strikes = ref<MyStrike[]>([]);
 const total = ref(0);
 const loading = ref(false);
@@ -31,21 +32,11 @@ const totalPages = computed(() =>
   Math.max(1, Math.ceil(total.value / PAGE_SIZE)),
 );
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
-
 async function loadStrikes() {
   const currentRequestId = ++requestId;
   error.value = '';
 
-  if (!authUser.value) {
+  if (!whoami.value.isSignedIn) {
     strikes.value = [];
     total.value = 0;
     loading.value = false;
@@ -61,7 +52,7 @@ async function loadStrikes() {
     if (currentRequestId !== requestId) return;
     strikes.value = result.items;
     total.value = result.total;
-    void updateStrikeReadState(result.latestStrikeId);
+    void attention.updateStrikeReadState(result.latestStrikeId);
   } catch (reason) {
     if (currentRequestId !== requestId) return;
     strikes.value = [];
@@ -77,10 +68,10 @@ function changePage(nextPage: number) {
     path: route.path,
     query: nextPage > 1 ? { page: String(nextPage) } : {},
   });
-  document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+  scrollToTop({ behavior: 'smooth' });
 }
 
-watch([authUser, page], loadStrikes, { immediate: true });
+watch([whoami, page], loadStrikes, { immediate: true });
 onBeforeUnmount(() => requestId++);
 </script>
 
@@ -92,7 +83,7 @@ onBeforeUnmount(() => requestId++);
         <p class="mt-1 text-sm text-muted">查看你的账号处罚及其撤销状态。</p>
       </header>
 
-      <section v-if="!authUser" class="py-8 text-center">
+      <section v-if="!whoami.isSignedIn" class="py-8 text-center">
         <div
           class="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary"
           aria-hidden="true"
@@ -140,9 +131,7 @@ onBeforeUnmount(() => requestId++);
                     {{ strike.reason }}
                   </h2>
                   <p class="mt-1 text-xs text-muted">
-                    <time :datetime="strike.createdAt">
-                      {{ formatDate(strike.createdAt) }}
-                    </time>
+                    <XTime :time="strike.createdAt" />
                     <span aria-hidden="true">·</span>
                     记录 #{{ strike.id }}
                   </p>
@@ -176,9 +165,7 @@ onBeforeUnmount(() => requestId++);
 
               <p v-if="strike.revokedAt" class="mt-3 text-xs text-muted">
                 撤销于
-                <time :datetime="strike.revokedAt">
-                  {{ formatDate(strike.revokedAt) }}
-                </time>
+                <XTime :time="strike.revokedAt" />
               </p>
             </article>
           </div>

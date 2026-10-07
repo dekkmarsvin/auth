@@ -28,6 +28,9 @@ services:
       - MAILGUN_DOMAIN
       - MAILGUN_APIKEY
       - MAILGUN_API_BASE
+      - TURNSTILE_SECRET
+      - TURNSTILE_HOSTNAMES
+      - TURNSTILE_SITE_KEY
     healthcheck:
       test:
         [

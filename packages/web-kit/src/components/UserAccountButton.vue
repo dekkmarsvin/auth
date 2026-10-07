@@ -5,64 +5,93 @@ import {
   GavelOutlined,
   KeyboardArrowDownOutlined,
 } from '@vicons/material';
-import { roleLabels } from '@novelia/auth-api';
-import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef } from 'vue';
-import { RouterLink } from 'vue-router';
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from 'reka-ui';
+import {
+  computed,
+  type CSSProperties,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useTemplateRef,
+  watch,
+} from 'vue';
+import { RouterLink, type RouteLocationRaw } from 'vue-router';
 
-import { useWebKit, useWebTheme } from '../context';
-import { useAttention } from '../attentionContext';
+import { useWebKit } from '../context';
 import type { WebKitMenuOption } from '../types';
+import XTime from '../ui/XTime.vue';
+import AccountMenuOptions from './AccountMenuOptions.vue';
 
 defineProps<{ options: WebKitMenuOption[] }>();
 
-const { api: authApi, profile: authUser } = useWebKit();
-const { status: attentionStatus, refresh: refreshAttentionStatus } =
-  useAttention();
-const accountRoot = useTemplateRef('accountRoot');
+const {
+  api: authApi,
+  attention,
+  options: kitOptions,
+  whoami,
+  theme: webTheme,
+} = useWebKit();
 const loginFrame = useTemplateRef('loginFrame');
 const menuOpen = ref(false);
 const loginOpen = ref(false);
+const loginViewportStyle = ref<CSSProperties>({});
+
+watch(loginOpen, (open, _, onCleanup) => {
+  loginViewportStyle.value = {};
+  if (!open) return;
+
+  // iframe 无法感知宿主被键盘缩小的可见视口，由父页面同步其位置和高度。
+  const viewport = window.visualViewport;
+  if (!viewport) return;
+
+  const syncViewport = () => {
+    loginViewportStyle.value = {
+      top: `${viewport.offsetTop}px`,
+      height: `${viewport.height}px`,
+      bottom: 'auto',
+    };
+  };
+
+  syncViewport();
+  viewport.addEventListener('resize', syncViewport);
+  viewport.addEventListener('scroll', syncViewport);
+  onCleanup(() => {
+    viewport.removeEventListener('resize', syncViewport);
+    viewport.removeEventListener('scroll', syncViewport);
+  });
+});
 const loginError = ref<string>();
 const completingLogin = ref(false);
+const strikesEnabled = computed(() => kitOptions.strikes.enabled);
+const strikesTo = computed(() => kitOptions.strikes.to as RouteLocationRaw);
 const hasUnreadStrikes = computed(
-  () => attentionStatus.value?.strikes.hasUnread === true,
+  () =>
+    strikesEnabled.value && attention.status.value?.strikes.hasUnread === true,
 );
 
 const accountLabel = computed(() => {
-  if (!authUser.value) return '登录/注册';
+  const user = whoami.value.user;
+  if (!user) return '登录/注册';
   const attention = hasUnreadStrikes.value ? '，有新的处罚记录' : '';
-  return `账号 @${authUser.value.username}${attention}`;
+  return `账号 @${user.username}${attention}`;
 });
 
-const roleLabel = computed(() => {
-  const role = authUser.value?.role;
-  return role ? (roleLabels[role] ?? role) : '未知角色';
+const loginFrameSrc = computed(() =>
+  authApi.createLoginUrl(webTheme.theme.value),
+);
+
+watch(menuOpen, (open) => {
+  if (open) void attention.refresh();
 });
-
-const createdAt = computed(() => {
-  const timestamp = authUser.value?.createdAt;
-  if (!timestamp) return '未知日期';
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium' }).format(
-    timestamp * 1000,
-  );
-});
-
-const { theme } = useWebTheme();
-const loginFrameSrc = computed(() => authApi.createLoginUrl(theme.value));
-
-function handleDocumentClick(event: MouseEvent) {
-  if (accountRoot.value?.contains(event.target as Node)) return;
-  menuOpen.value = false;
-  document.removeEventListener('click', handleDocumentClick);
-}
-
-function openMenu() {
-  menuOpen.value = !menuOpen.value;
-  if (menuOpen.value) {
-    document.addEventListener('click', handleDocumentClick);
-    void refreshAttentionStatus();
-  } else document.removeEventListener('click', handleDocumentClick);
-}
 
 function openLogin() {
   loginError.value = undefined;
@@ -105,16 +134,15 @@ async function logout() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape') return;
-  if (loginOpen.value) closeLogin();
-  else menuOpen.value = false;
+  if (event.key === 'Escape' && loginOpen.value) closeLogin();
 }
 
-window.addEventListener('message', handleMessage);
-window.addEventListener('keydown', handleKeydown);
+onMounted(() => {
+  window.addEventListener('message', handleMessage);
+  window.addEventListener('keydown', handleKeydown);
+});
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', handleDocumentClick);
   window.removeEventListener('message', handleMessage);
   window.removeEventListener('keydown', handleKeydown);
 });
@@ -126,123 +154,136 @@ async function focusLoginFrame() {
 </script>
 
 <template>
-  <div ref="accountRoot" class="relative ml-auto min-w-0 flex-none">
-    <button
-      v-if="authUser"
-      type="button"
-      class="account-trigger"
-      :aria-label="accountLabel"
-      :aria-expanded="menuOpen"
-      aria-haspopup="menu"
-      @click="openMenu"
-    >
-      <span class="max-w-24 truncate sm:max-w-48">
-        @{{ authUser.username }}
-      </span>
-      <span class="grid size-2 flex-none place-items-center" aria-hidden="true">
-        <Transition
-          enter-active-class="transition-opacity duration-150"
-          enter-from-class="opacity-0"
-          leave-active-class="transition-opacity duration-150"
-          leave-to-class="opacity-0"
+  <div class="relative ml-auto min-w-0 flex-none">
+    <DropdownMenuRoot v-if="whoami.isSignedIn" v-model:open="menuOpen">
+      <DropdownMenuTrigger as-child>
+        <button
+          type="button"
+          class="account-trigger"
+          :aria-label="accountLabel"
         >
+          <span class="max-w-24 truncate sm:max-w-48">
+            @{{ whoami.user?.username }}
+          </span>
           <span
-            v-if="hasUnreadStrikes"
-            class="size-1.5 rounded-full bg-red-600 ring-2 ring-surface"
+            class="grid size-2 flex-none place-items-center"
+            aria-hidden="true"
+          >
+            <Transition
+              enter-active-class="transition-opacity duration-150"
+              enter-from-class="opacity-0"
+              leave-active-class="transition-opacity duration-150"
+              leave-to-class="opacity-0"
+            >
+              <span
+                v-if="hasUnreadStrikes"
+                class="size-1.5 rounded-full bg-red-600 ring-2 ring-surface"
+              />
+            </Transition>
+          </span>
+          <KeyboardArrowDownOutlined
+            class="size-4 flex-none"
+            aria-hidden="true"
           />
-        </Transition>
-      </span>
-      <KeyboardArrowDownOutlined class="size-4 flex-none" aria-hidden="true" />
-    </button>
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuPortal>
+        <DropdownMenuContent
+          align="end"
+          :side-offset="8"
+          :collision-padding="8"
+          class="account-menu z-40 outline-none"
+        >
+          <DropdownMenuLabel class="px-3 py-2.5">
+            <button
+              v-if="whoami.isAdmin"
+              type="button"
+              class="cursor-pointer text-sm font-medium text-ink"
+              :aria-pressed="whoami.asAdmin"
+              @click="authApi.toggleAdminMode()"
+            >
+              {{ whoami.roleLabel }}{{ whoami.asAdmin ? '+' : '' }}
+            </button>
+            <p v-else class="text-sm font-medium text-ink">
+              {{ whoami.roleLabel }}
+            </p>
+            <p class="mt-0.5 text-xs text-muted">
+              注册于
+              <XTime :time="whoami.user?.createdAt" preset="date" />
+            </p>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator class="border-t border-divider" />
+          <div class="p-1">
+            <AccountMenuOptions :options="options" />
+            <DropdownMenuItem v-if="strikesEnabled" as-child>
+              <RouterLink :to="strikesTo" class="account-menu-item">
+                <GavelOutlined class="size-4" aria-hidden="true" />
+                <span class="min-w-0 flex-1">处罚记录</span>
+                <span
+                  v-if="hasUnreadStrikes"
+                  class="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] leading-none font-medium text-red-600"
+                  aria-hidden="true"
+                >
+                  新
+                </span>
+                <span v-if="hasUnreadStrikes" class="sr-only">
+                  ，有新的处罚记录
+                </span>
+              </RouterLink>
+            </DropdownMenuItem>
+            <DropdownMenuItem class="account-menu-item" @select="logout">
+              <ExitToAppOutlined class="size-4" aria-hidden="true" />
+              退出账号
+            </DropdownMenuItem>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
+    </DropdownMenuRoot>
 
     <button v-else type="button" class="account-trigger" @click="openLogin">
       登录/注册
     </button>
-
-    <div v-if="menuOpen && authUser" class="account-menu" role="menu">
-      <div class="px-3 py-2.5">
-        <p class="text-sm font-medium text-ink">{{ roleLabel }}</p>
-        <p class="mt-0.5 text-xs text-muted">注册于 {{ createdAt }}</p>
-      </div>
-      <div class="border-t border-divider p-1">
-        <RouterLink
-          v-for="option in options"
-          :key="option.key"
-          :to="option.to"
-          class="account-menu-item"
-          role="menuitem"
-          @click="menuOpen = false"
-        >
-          <component :is="option.icon" class="size-4" aria-hidden="true" />
-          {{ option.label }}
-        </RouterLink>
-        <RouterLink
-          to="/strikes"
-          class="account-menu-item"
-          role="menuitem"
-          @click="menuOpen = false"
-        >
-          <GavelOutlined class="size-4" aria-hidden="true" />
-          <span class="min-w-0 flex-1">处罚记录</span>
-          <span
-            v-if="hasUnreadStrikes"
-            class="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] leading-none font-medium text-red-600"
-            aria-hidden="true"
-          >
-            新
-          </span>
-          <span v-if="hasUnreadStrikes" class="sr-only">，有新的处罚记录</span>
-        </RouterLink>
-        <button
-          type="button"
-          class="account-menu-item"
-          role="menuitem"
-          @click="logout"
-        >
-          <ExitToAppOutlined class="size-4" aria-hidden="true" />
-          退出账号
-        </button>
-      </div>
-    </div>
   </div>
 
   <Teleport to="body">
+    <!--
+      The login page is embedded full-page, matching how the auth app renders
+      it standalone (admin-kit does the same). A constrained modal iframe would
+      make the page's own viewport-based layout diverge from that rendering.
+    -->
     <div
       v-if="loginOpen"
-      class="fixed inset-0 z-50 grid bg-black/45 p-4 sm:place-items-center"
+      class="fixed inset-0 z-50 bg-surface"
+      :style="loginViewportStyle"
       role="dialog"
       aria-modal="true"
       aria-label="登录或注册"
       @vue:mounted="focusLoginFrame"
-      @click.self="closeLogin"
     >
-      <div
-        class="relative h-full w-full overflow-hidden bg-surface shadow-2xl sm:h-[min(760px,calc(100dvh-3rem))] sm:max-w-lg sm:rounded-xl"
+      <button
+        type="button"
+        class="absolute top-3 right-3 z-10 grid size-9 place-items-center rounded-full bg-black/55 text-white transition hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        aria-label="关闭登录窗口"
+        @click="closeLogin"
       >
-        <button
-          type="button"
-          class="absolute top-3 right-3 z-10 grid size-9 place-items-center rounded-full bg-black/55 text-white transition hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          aria-label="关闭登录窗口"
-          @click="closeLogin"
-        >
-          <CloseOutlined class="size-5" aria-hidden="true" />
-        </button>
+        <CloseOutlined class="size-5" aria-hidden="true" />
+      </button>
 
-        <iframe
-          ref="loginFrame"
-          class="h-full w-full border-0"
-          :src="loginFrameSrc"
-          title="登录或注册"
-        />
+      <iframe
+        ref="loginFrame"
+        class="block h-full w-full border-0"
+        :src="loginFrameSrc"
+        title="登录或注册"
+      />
 
-        <p
-          v-if="loginError"
-          class="absolute right-4 bottom-4 left-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow"
-          role="alert"
-        >
-          {{ loginError }}
-        </p>
-      </div>
+      <p
+        v-if="loginError"
+        class="absolute bottom-4 left-1/2 w-[min(420px,calc(100%-2rem))] -translate-x-1/2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow"
+        role="alert"
+      >
+        {{ loginError }}
+      </p>
     </div>
   </Teleport>
 </template>

@@ -1,17 +1,13 @@
 import { inject, type InjectionKey } from 'vue';
 
-import type { WebKit } from './types';
+import type { WebKitContext } from './types';
 
-export const webKitKey: InjectionKey<WebKit> = Symbol('web-kit');
+export const webKitKey: InjectionKey<WebKitContext> = Symbol('web-kit');
 
-export function useWebKit() {
+export function useWebKit(): WebKitContext {
   const kit = inject(webKitKey);
   if (!kit) {
     throw new Error('Web kit is not installed. Call app.use(webKit).');
   }
   return kit;
-}
-
-export function useWebTheme() {
-  return useWebKit().theme;
 }

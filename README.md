@@ -28,9 +28,13 @@ POSTGRES_PASSWORD=$(openssl rand -base64 48)
 MAILGUN_DOMAIN=verify.kotoban.top
 MAILGUN_APIKEY=<mailgun_apikey>
 # 若使用 EU 區域，設定 MAILGUN_API_BASE=https://api.eu.mailgun.net
+TURNSTILE_SITE_KEY=<turnstile_site_key>
+TURNSTILE_SECRET=<turnstile_secret>
+TURNSTILE_HOSTNAMES=auth.kotoban.top
 EOF
 
 # 3. 启动服务
+bash script/check_turnstile_config.sh
 docker compose up -d
 ```
 
@@ -44,3 +48,30 @@ docker compose up -d
 
 新版管理介面位於 `https://auth.kotoban.top/admin/`。舊 refresh cookie 可繼續
 換發帶 `uid` 的新版 access token；保留 secrets 即可避免重建帳號或重設密碼。
+
+## 第三方服務
+
+Mailgun 使用 `MAILGUN_DOMAIN`、`MAILGUN_APIKEY`；`MAILGUN_API_BASE` 可選，
+保留既有區域設定，EU 區域可填 `https://api.eu.mailgun.net`。
+
+Cloudflare Turnstile 保護註冊及找回密碼的驗證碼發送。正式環境需先在 widget
+允許 `auth.kotoban.top`，並在既有 `.env` 設定：
+
+| 參數 | 用途 |
+| --- | --- |
+| `TURNSTILE_SITE_KEY` | 該 widget 的公開站點金鑰 |
+| `TURNSTILE_SECRET` | 同一 widget 的伺服器密鑰 |
+| `TURNSTILE_HOSTNAMES` | 正式環境固定為 `auth.kotoban.top` |
+
+登入 iframe 在 Auth 網域內執行驗證，因此驗證回傳的 hostname 是
+`auth.kotoban.top`。正式環境不得允許 `localhost`、`127.0.0.1` 或測試金鑰。
+本 fork 透過 `GET /api/v1/auth/config` 提供公開站點金鑰，無需把它編入 Docker
+映像；此回應不快取，且不包含密鑰或 hostname allowlist。
+
+更新服務前執行 `bash script/check_turnstile_config.sh`，確認 Compose 將三個
+設定傳入 API。腳本只輸出檢查結果，不顯示金鑰。它檢查本機設定，widget 的
+網域及金鑰配對仍需在 Cloudflare 確認。
+
+API 驗證 Siteverify 的 `success`、action（註冊為 `signup`，找回密碼為
+`password_reset`）及 hostname 後才執行原本的寄信流程。缺少設定、驗證失敗
+或驗證服務無法連線時拒絕請求。既有密碼登入及 cookie 換發不受此驗證影響。

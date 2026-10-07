@@ -1,35 +1,38 @@
-import { ref } from 'vue';
+import { readonly, ref } from 'vue';
 
-interface AppNotification {
+export interface AppNotification {
   id: number;
   type: 'success' | 'error';
   message: string;
 }
 
-export const notifications = ref<AppNotification[]>([]);
+const items = ref<AppNotification[]>([]);
+let nextId = 0;
 
-let nextNotificationId = 0;
-
-function addNotification(type: AppNotification['type'], message: string) {
-  notifications.value.unshift({
-    id: ++nextNotificationId,
-    type,
-    message,
-  });
+function add(type: AppNotification['type'], message: string) {
+  items.value.unshift({ id: ++nextId, type, message });
 }
 
+/** 唯一的应用级通知队列；由 WebKitApp 渲染，不随 kit 创建而切换。 */
 export const Notify = {
   success(message: string) {
-    addNotification('success', message);
+    add('success', message);
   },
   error(message: string) {
-    addNotification('error', message);
+    add('error', message);
+  },
+  dismissAll() {
+    items.value = [];
   },
 } as const;
 
-export function dismissNotification(id: number) {
-  const index = notifications.value.findIndex(
-    (notification) => notification.id === id,
-  );
-  if (index >= 0) notifications.value.splice(index, 1);
-}
+/** 内部渲染接口，不从包入口导出。 */
+export const notifications = {
+  items: readonly(items),
+  dismiss(id: number) {
+    const index = items.value.findIndex(
+      (notification) => notification.id === id,
+    );
+    if (index >= 0) items.value.splice(index, 1);
+  },
+};

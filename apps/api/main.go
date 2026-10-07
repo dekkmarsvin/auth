@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -32,6 +33,16 @@ func envInt(key string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func envList(key string) []string {
+	var values []string
+	for _, value := range strings.Split(env(key, ""), ",") {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
 }
 
 func runOtpCleanup(ctx context.Context, repo repository.OtpRepository, interval time.Duration) {
@@ -98,6 +109,10 @@ func main() {
 		slog.Error("Email client configuration error", "error", err)
 		return
 	}
+	turnstileVerifier := infra.NewTurnstileVerifier(
+		env("TURNSTILE_SECRET", ""),
+		envList("TURNSTILE_HOSTNAMES"),
+	)
 
 	// repository
 	userRepo := repository.NewUserRepository(db)
@@ -124,6 +139,7 @@ func main() {
 		otpRepo,
 		email,
 		settingRepo,
+		turnstileVerifier,
 	)
 	adminService := adminservice.NewAdminService(
 		userRepo,
@@ -151,7 +167,10 @@ func main() {
 			Schema:        httplog.SchemaECS,
 			RecoverPanics: true,
 		}))
-		router.Route("/auth", authService.Use)
+		router.Route("/auth", func(router chi.Router) {
+			router.Get("/config", infra.NewAuthConfigHandler(env("TURNSTILE_SITE_KEY", "")))
+			authService.Use(router)
+		})
 		router.Route("/admin", func(router chi.Router) {
 			router.Use(httpx.RequireAdmin)
 			adminService.Use(router)

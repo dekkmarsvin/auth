@@ -1,37 +1,64 @@
 <script setup lang="ts">
 import { DarkModeOutlined, LightModeOutlined } from '@vicons/material';
+import { ref } from 'vue';
 
-import { useWebKit, useWebTheme } from '../context';
+import { useWebKit } from '../context';
 import type { WebKitMenuOption } from '../types';
 import SidebarFooter from './SidebarFooter.vue';
 import SidebarNavigation from './SidebarNavigation.vue';
 
 defineProps<{
   options: WebKitMenuOption[];
+  expanded: Set<string>;
   selected?: string;
   collapsed?: boolean;
   fullWidth?: boolean;
+  mobileHeader?: boolean;
 }>();
 
 const emit = defineEmits<{
-  select: [option: WebKitMenuOption];
+  select: [samePath: boolean];
 }>();
 
-const { options: kitOptions } = useWebKit();
-const { isDark, toggleTheme } = useWebTheme();
+const { options: kitOptions, theme } = useWebKit();
+const { isDark, toggleTheme } = theme;
+const showMascot = ref(false);
 </script>
 
 <template>
   <aside
     class="web-kit-sidebar flex h-full flex-col overflow-hidden border-r border-divider bg-surface"
     :class="[
-      fullWidth ? 'w-full' : collapsed ? 'w-16' : 'w-50',
+      fullWidth ? 'w-full' : collapsed ? 'w-16' : 'w-60',
       { 'is-collapsed': collapsed },
     ]"
     aria-label="站点导航"
   >
-    <div class="brand-header" :title="collapsed ? kitOptions.brand : undefined">
-      <span class="brand-logo" aria-hidden="true" />
+    <div
+      v-if="mobileHeader"
+      class="relative h-[100px] flex-none bg-[#41a782]"
+      aria-hidden="true"
+    >
+      <img
+        src="../assets/mascot.webp"
+        alt=""
+        class="pointer-events-none absolute top-2 left-2 h-[120px] w-auto max-w-none"
+      />
+    </div>
+    <div
+      v-else
+      class="brand-header"
+      :title="collapsed ? kitOptions.brand : undefined"
+    >
+      <button
+        type="button"
+        class="grid size-9 flex-none cursor-pointer place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        :aria-label="showMascot ? '隐藏站娘' : '显示站娘'"
+        :aria-pressed="showMascot"
+        @click="showMascot = !showMascot"
+      >
+        <span class="brand-logo" aria-hidden="true" />
+      </button>
       <span
         class="brand-title text-ink"
         :class="collapsed ? 'opacity-0' : 'opacity-100'"
@@ -41,15 +68,18 @@ const { isDark, toggleTheme } = useWebTheme();
       </span>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 py-1">
+    <div
+      class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 py-1"
+      :class="{ 'mt-9': mobileHeader }"
+    >
       <SidebarNavigation
         :options="options"
+        :expanded="expanded"
         :selected="selected"
         :collapsed="collapsed"
         @select="emit('select', $event)"
       />
 
-      <div class="my-2 border-t border-divider" role="separator" />
       <button
         type="button"
         class="web-kit-sidebar-item text-ink hover:bg-hover"
@@ -81,6 +111,17 @@ const { isDark, toggleTheme } = useWebTheme();
       :commit-sha="kitOptions.repository.commitSha"
     />
   </aside>
+
+  <Teleport to="body">
+    <img
+      v-if="showMascot && !mobileHeader"
+      src="../assets/mascot.webp"
+      alt=""
+      aria-hidden="true"
+      draggable="false"
+      class="pointer-events-none fixed -right-[30px] -bottom-[30px] z-40 w-[200px] -rotate-[15deg] select-none"
+    />
+  </Teleport>
 </template>
 
 <style scoped>
@@ -95,7 +136,7 @@ const { isDark, toggleTheme } = useWebTheme();
 
 .brand-header {
   display: flex;
-  height: 4rem;
+  height: 50px;
   flex: none;
   align-items: center;
   gap: 10px;

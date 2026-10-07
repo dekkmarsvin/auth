@@ -6,6 +6,15 @@
 @theme {
   --color-paper: #f7f7f8;
   --color-surface: #ffffff;
+  --color-body: #ffffff;
+  --color-popover: #ffffff;
+  --color-modal: #ffffff;
+  --color-success: #18a058;
+  --color-error: #d03050;
+  --radius-floating: 3px;
+  --shadow-floating:
+    0 3px 6px -4px rgb(0 0 0 / 12%), 0 6px 16px rgb(0 0 0 / 8%),
+    0 9px 28px 8px rgb(0 0 0 / 5%);
   --color-ink: #1f2225;
   --color-muted: #767c82;
   --color-border: #e0e0e6;
@@ -25,14 +34,20 @@
     color: var(--color-ink);
     background: var(--color-surface);
     font-family: var(--font-sans);
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
   }
 
   :root[data-theme='dark'] {
     color-scheme: dark;
     --color-paper: #101014;
     --color-surface: #18181c;
+    --color-body: #101014;
+    --color-popover: #48484e;
+    --color-modal: #2c2c32;
+    --color-success: #63e2b7;
+    --color-error: #e88080;
+    --shadow-floating:
+      0 3px 6px -4px rgb(0 0 0 / 24%), 0 6px 12px rgb(0 0 0 / 16%),
+      0 9px 18px 8px rgb(0 0 0 / 10%);
     --color-ink: #f2f2f5;
     --color-muted: #a3a3aa;
     --color-border: #3b3b40;
@@ -73,9 +88,22 @@
 
   body {
     min-width: 320px;
-    min-height: 100vh;
+    min-height: 100dvh;
     margin: 0;
     background: var(--color-surface);
+    /* Match Naive UI's global typography without changing rem-based sizing.
+       Keep native font synthesis so CJK fonts without bold faces can be bold. */
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* Layout pages scroll inside main, never on the document. Keep this scoped
+     so pages without WebKitLayout retain normal document scrolling. */
+  :root:has(.web-kit-layout),
+  body:has(.web-kit-layout) {
+    overflow: hidden;
+    overscroll-behavior-y: none;
   }
 
   button,
@@ -111,20 +139,18 @@
   }
 }
 
+@utility floating-panel {
+  border-radius: var(--radius-floating);
+  background: var(--color-popover);
+  box-shadow: var(--shadow-floating);
+}
+
 @utility account-menu {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
+  @apply floating-panel;
   z-index: 40;
   width: 12rem;
   overflow: hidden;
   padding-block: 0.25rem;
-  border-radius: 0.1875rem;
-  background: var(--color-surface);
-  box-shadow:
-    0 3px 6px -4px rgb(0 0 0 / 12%),
-    0 6px 16px rgb(0 0 0 / 8%),
-    0 9px 28px 8px rgb(0 0 0 / 5%);
 }
 
 @utility account-menu-item {
@@ -132,14 +158,16 @@
   width: 100%;
   align-items: center;
   gap: 0.5rem;
-  border-radius: 0.25rem;
+  border-radius: var(--radius-floating);
   padding: 0.5rem 0.75rem;
   color: var(--color-ink);
   font-size: 0.875rem;
   text-align: left;
+  outline: none;
   transition: background-color 150ms ease;
 
-  &:hover {
+  &:hover,
+  &[data-highlighted] {
     background: var(--color-hover);
   }
 
@@ -159,6 +187,9 @@
   overflow: hidden;
   border-radius: 3px;
   padding-inline: var(--web-kit-item-padding, 1.5rem);
+  padding-inline-start: calc(
+    var(--web-kit-item-padding, 1.5rem) + var(--web-kit-item-indent, 0px)
+  );
   font-size: 14px;
   font-weight: 400;
   text-align: left;
