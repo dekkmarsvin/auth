@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 const (
@@ -95,22 +97,264 @@ func TestTurnstileVerifyRejectsInvalidToken(t *testing.T) {
 }
 
 func TestTurnstileVerifyRejectsRedeemedToken(t *testing.T) {
+	server, _ := siteverifyStub(t, http.StatusOK, `{"success":false,"error-codes":["timeout-or-duplicate"]}`)
+	verifier := newTestVerifier("secret", server.URL)
+	err := verifier.Verify(t.Context(), "redeemed-elsewhere", "", testAction)
+	if !errors.Is(err, ErrTurnstileInvalid) || errors.Is(err, ErrTurnstileReplay) || !strings.Contains(err.Error(), "timeout-or-duplicate") {
+		t.Fatalf("unexpected provider duplicate result: %v", err)
+	}
+}
+
+func TestTurnstileAcceptedTokenRejectsReplayWithoutProvider(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
 		w.Header().Set("Content-Type", "application/json")
-		if requests.Add(1) == 1 {
-			io.WriteString(w, successBody("auth.kotoban.top", testAction))
-		} else {
-			io.WriteString(w, `{"success":false,"error-codes":["timeout-or-duplicate"]}`)
-		}
+		// The guard must work even if the provider accepts the replay again.
+		io.WriteString(w, successBody("auth.kotoban.top", testAction))
 	}))
 	defer server.Close()
 	verifier := newTestVerifier("fixture-secret", server.URL, "auth.kotoban.top")
 	if err := verifier.Verify(t.Context(), "single-use-token", "", testAction); err != nil {
 		t.Fatalf("fresh token failed: %v", err)
 	}
-	if err := verifier.Verify(t.Context(), "single-use-token", "", testAction); !errors.Is(err, ErrTurnstileInvalid) {
+	if err := verifier.Verify(t.Context(), "single-use-token", "", testAction); !errors.Is(err, ErrTurnstileReplay) || !errors.Is(err, ErrTurnstileInvalid) {
 		t.Fatalf("redeemed token was accepted: %v", err)
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("replay reached the provider: %d requests", requests.Load())
+	}
+}
+
+func TestTurnstileConcurrentReplayCallsProviderOnce(t *testing.T) {
+	var requests atomic.Int32
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	var release sync.Once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requests.Add(1) == 1 {
+			close(entered)
+		}
+		<-proceed
+		io.WriteString(w, successBody(testHostname, testAction))
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { release.Do(func() { close(proceed) }) })
+	verifier := newTestVerifier("secret", server.URL)
+	first := make(chan error, 1)
+	go func() { first <- verifier.Verify(t.Context(), "pending-token", "", testAction) }()
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first request did not reach the provider")
+	}
+	const duplicates = 16
+	results := make(chan error, duplicates)
+	var workers sync.WaitGroup
+	for i := 0; i < duplicates; i++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			results <- verifier.Verify(t.Context(), "pending-token", "", testAction)
+		}()
+	}
+	workers.Wait()
+	close(results)
+	for err := range results {
+		if !errors.Is(err, ErrTurnstileReplay) {
+			t.Fatalf("pending replay was not rejected: %v", err)
+		}
+	}
+	release.Do(func() { close(proceed) })
+	if err := <-first; err != nil {
+		t.Fatalf("original request failed: %v", err)
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("concurrent requests reached the provider: %d", requests.Load())
+	}
+}
+
+func TestTurnstileProviderFailureReleasesClaim(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+		want   error
+	}{
+		{"HTTP failure", http.StatusBadGateway, `{}`, ErrTurnstileUnavailable},
+		{"malformed body", http.StatusOK, `not JSON`, ErrTurnstileUnavailable},
+		{"invalid token", http.StatusOK, `{"success":false,"error-codes":["invalid-input-response"]}`, ErrTurnstileInvalid},
+		{"invalid secret", http.StatusOK, `{"success":false,"error-codes":["invalid-input-secret"]}`, ErrTurnstileUnavailable},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if requests.Add(1) == 1 {
+					w.WriteHeader(test.status)
+					io.WriteString(w, test.body)
+				} else {
+					io.WriteString(w, successBody(testHostname, testAction))
+				}
+			}))
+			defer server.Close()
+			verifier := newTestVerifier("secret", server.URL)
+			if err := verifier.Verify(t.Context(), "retry-token", "", testAction); !errors.Is(err, test.want) {
+				t.Fatalf("unexpected first failure: %v", err)
+			}
+			if err := verifier.Verify(t.Context(), "retry-token", "", testAction); err != nil {
+				t.Fatalf("failed claim was not released: %v", err)
+			}
+			if requests.Load() != 2 {
+				t.Fatalf("expected two provider calls, got %d", requests.Load())
+			}
+		})
+	}
+}
+
+func TestTurnstileInvalidTokensDoNotFillReplayGuard(t *testing.T) {
+	server, _ := siteverifyStub(t, http.StatusOK, `{"success":false,"error-codes":["invalid-input-response"]}`)
+	verifier := newTestVerifier("secret", server.URL).(*turnstileVerifier)
+	verifier.replayLimit = 1
+	for _, token := range []string{"invalid-one", "invalid-two", "invalid-three"} {
+		if err := verifier.Verify(t.Context(), token, "", testAction); !errors.Is(err, ErrTurnstileInvalid) {
+			t.Fatalf("invalid token consumed replay capacity: %v", err)
+		}
+		if len(verifier.replay) != 0 {
+			t.Fatal("failed claim was retained")
+		}
+	}
+}
+
+func TestTurnstileSuccessfulProviderMismatchRetainsClaim(t *testing.T) {
+	tests := []struct {
+		name        string
+		hostname    string
+		action      string
+		retryAction string
+	}{
+		{"foreign hostname", "evil.example.com", testAction, testAction},
+		{"wrong expected action", testHostname, "password_reset", "password_reset"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				io.WriteString(w, successBody(test.hostname, test.action))
+			}))
+			defer server.Close()
+			verifier := newTestVerifier("secret", server.URL)
+			if err := verifier.Verify(t.Context(), "mismatched-token", "", testAction); !errors.Is(err, ErrTurnstileInvalid) || errors.Is(err, ErrTurnstileReplay) {
+				t.Fatalf("first request did not reject the mismatch: %v", err)
+			}
+			if err := verifier.Verify(t.Context(), "mismatched-token", "", test.retryAction); !errors.Is(err, ErrTurnstileReplay) {
+				t.Fatalf("mismatched token could be repurposed: %v", err)
+			}
+			if requests.Load() != 1 {
+				t.Fatalf("mismatched token reached the provider again: %d", requests.Load())
+			}
+		})
+	}
+}
+
+func TestTurnstileReplayExpiry(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		io.WriteString(w, successBody(testHostname, testAction))
+	}))
+	defer server.Close()
+	verifier := newTestVerifier("secret", server.URL).(*turnstileVerifier)
+	now := time.Unix(100, 0)
+	verifier.now = func() time.Time { return now }
+	if err := verifier.Verify(t.Context(), "expiry-token", "", testAction); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(turnstileReplayTTL - time.Nanosecond)
+	if err := verifier.Verify(t.Context(), "expiry-token", "", testAction); !errors.Is(err, ErrTurnstileReplay) {
+		t.Fatalf("claim expired early: %v", err)
+	}
+	now = now.Add(time.Nanosecond)
+	if err := verifier.Verify(t.Context(), "expiry-token", "", testAction); err != nil {
+		t.Fatalf("expired claim was not cleaned: %v", err)
+	}
+	if requests.Load() != 2 || len(verifier.replay) != 1 {
+		t.Fatalf("unexpected expiry state: %d provider calls, %d entries", requests.Load(), len(verifier.replay))
+	}
+}
+
+func TestTurnstileReplayCapacityFailsClosedWithoutEviction(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		io.WriteString(w, successBody(testHostname, testAction))
+	}))
+	defer server.Close()
+	verifier := newTestVerifier("secret", server.URL).(*turnstileVerifier)
+	verifier.replayLimit = 2
+	now := time.Unix(100, 0)
+	verifier.now = func() time.Time { return now }
+	for _, token := range []string{"first-token", "second-token"} {
+		if err := verifier.Verify(t.Context(), token, "", testAction); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := verifier.Verify(t.Context(), "third-token", "", testAction); !errors.Is(err, ErrTurnstileUnavailable) {
+		t.Fatalf("full guard did not fail closed: %v", err)
+	}
+	if err := verifier.Verify(t.Context(), "first-token", "", testAction); !errors.Is(err, ErrTurnstileReplay) {
+		t.Fatalf("unexpired claim was evicted: %v", err)
+	}
+	if requests.Load() != 2 || len(verifier.replay) != 2 {
+		t.Fatalf("capacity guard changed state: %d requests, %d entries", requests.Load(), len(verifier.replay))
+	}
+	now = now.Add(turnstileReplayTTL)
+	if err := verifier.Verify(t.Context(), "third-token", "", testAction); err != nil {
+		t.Fatalf("expired capacity was not reclaimed: %v", err)
+	}
+	if len(verifier.replay) != 1 {
+		t.Fatalf("expired entries remain: %d", len(verifier.replay))
+	}
+}
+
+func TestTurnstileLateReleasePreservesNewClaim(t *testing.T) {
+	verifier := newTestVerifier("secret", "http://unused.example").(*turnstileVerifier)
+	now := time.Unix(100, 0)
+	verifier.now = func() time.Time { return now }
+	key, oldClaim, err := verifier.claimToken("same-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(turnstileReplayTTL)
+	_, newClaim, err := verifier.claimToken("same-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier.releaseToken(key, oldClaim)
+	if verifier.replay[key] != newClaim {
+		t.Fatal("late failure released a newer claim")
+	}
+	if _, _, err := verifier.claimToken("same-token"); !errors.Is(err, ErrTurnstileReplay) {
+		t.Fatalf("new pending claim was not protected: %v", err)
+	}
+}
+
+func TestTurnstileReplayStateIsPerVerifier(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		io.WriteString(w, successBody(testHostname, testAction))
+	}))
+	defer server.Close()
+	for i := 0; i < 2; i++ {
+		verifier := newTestVerifier("secret", server.URL)
+		if err := verifier.Verify(t.Context(), "same-token", "", testAction); err != nil {
+			t.Fatalf("independent verifier reused global state: %v", err)
+		}
+	}
+	if requests.Load() != 2 {
+		t.Fatalf("expected two independent provider calls, got %d", requests.Load())
 	}
 }
 
@@ -252,6 +496,9 @@ func TestTurnstileVerifyFailsClosed(t *testing.T) {
 			err := verifier.Verify(t.Context(), test.token, "", testAction)
 			if !errors.Is(err, ErrTurnstileUnavailable) {
 				t.Fatalf("expected ErrTurnstileUnavailable, got %v", err)
+			}
+			if len(verifier.(*turnstileVerifier).replay) != 0 {
+				t.Fatal("unavailable verification retained a token claim")
 			}
 		})
 	}

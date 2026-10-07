@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -18,12 +20,20 @@ const DefaultTurnstileEndpoint = "https://challenges.cloudflare.com/turnstile/v0
 // turnstileMaxTokenLength rejects oversized tokens before they reach Cloudflare.
 const turnstileMaxTokenLength = 2048
 
+const (
+	turnstileReplayTTL      = 5 * time.Minute
+	turnstileReplayMaxItems = 16384
+)
+
 var (
 	// ErrTurnstileInvalid is returned when Cloudflare rejects the token, or when
 	// the token was minted for another action or frontend hostname.
 	ErrTurnstileInvalid = errors.New("turnstile token is invalid")
 	// ErrTurnstileUnavailable is returned when the token could not be checked.
 	ErrTurnstileUnavailable = errors.New("turnstile verification is unavailable")
+	// ErrTurnstileReplay distinguishes a local duplicate from a provider rejection
+	// while preserving the existing invalid-token HTTP contract.
+	ErrTurnstileReplay = fmt.Errorf("%w: timeout-or-duplicate (local replay)", ErrTurnstileInvalid)
 )
 
 // TurnstileVerifier validates Turnstile tokens against siteverify. The token is
@@ -38,6 +48,47 @@ type turnstileVerifier struct {
 	endpoint  string
 	client    *http.Client
 	hostnames map[string]struct{}
+
+	replayMu    sync.Mutex
+	replay      map[[sha256.Size]byte]*turnstileClaim
+	replayLimit int
+	now         func() time.Time
+}
+
+type turnstileClaim struct {
+	expiresAt time.Time
+}
+
+// claimToken reserves a hash before the outbound request so concurrent replays
+// cannot both reach Siteverify. The single production API uses one verifier.
+func (v *turnstileVerifier) claimToken(token string) ([sha256.Size]byte, *turnstileClaim, error) {
+	key := sha256.Sum256([]byte(token))
+	v.replayMu.Lock()
+	defer v.replayMu.Unlock()
+	now := v.now()
+	for hash, claim := range v.replay {
+		if !now.Before(claim.expiresAt) {
+			delete(v.replay, hash)
+		}
+	}
+	if _, exists := v.replay[key]; exists {
+		return key, nil, ErrTurnstileReplay
+	}
+	if len(v.replay) >= v.replayLimit {
+		return key, nil, fmt.Errorf("%w: replay guard capacity reached", ErrTurnstileUnavailable)
+	}
+	claim := &turnstileClaim{expiresAt: now.Add(turnstileReplayTTL)}
+	v.replay[key] = claim
+	return key, claim, nil
+}
+
+func (v *turnstileVerifier) releaseToken(key [sha256.Size]byte, claim *turnstileClaim) {
+	v.replayMu.Lock()
+	defer v.replayMu.Unlock()
+	// An expired pending request must not delete a newer claim for this hash.
+	if v.replay[key] == claim {
+		delete(v.replay, key)
+	}
 }
 
 // TurnstileOption customises a Turnstile verifier.
@@ -89,10 +140,13 @@ func (v *turnstileVerifier) allowsHostname(hostname string) bool {
 // the request rather than letting it through.
 func NewTurnstileVerifier(secret string, hostnames []string, options ...TurnstileOption) TurnstileVerifier {
 	verifier := &turnstileVerifier{
-		secret:    secret,
-		endpoint:  DefaultTurnstileEndpoint,
-		client:    &http.Client{},
-		hostnames: resolveTurnstileHostnames(hostnames),
+		secret:      secret,
+		endpoint:    DefaultTurnstileEndpoint,
+		client:      &http.Client{},
+		hostnames:   resolveTurnstileHostnames(hostnames),
+		replay:      make(map[[sha256.Size]byte]*turnstileClaim),
+		replayLimit: turnstileReplayMaxItems,
+		now:         time.Now,
 	}
 	for _, option := range options {
 		option(verifier)
@@ -123,6 +177,16 @@ func (v *turnstileVerifier) Verify(ctx context.Context, token string, remoteIp s
 	if len(token) > turnstileMaxTokenLength {
 		return fmt.Errorf("%w: token exceeds %d characters", ErrTurnstileInvalid, turnstileMaxTokenLength)
 	}
+	key, claim, err := v.claimToken(token)
+	if err != nil {
+		return err
+	}
+	consumed := false
+	defer func() {
+		if !consumed {
+			v.releaseToken(key, claim)
+		}
+	}()
 
 	form := url.Values{}
 	form.Set("secret", v.secret)
@@ -168,6 +232,9 @@ func (v *turnstileVerifier) Verify(ctx context.Context, token string, remoteIp s
 		}
 		return fmt.Errorf("%w: %s", ErrTurnstileInvalid, strings.Join(result.ErrorCodes, ","))
 	}
+	// A successful Siteverify consumes the token even when local action/hostname
+	// checks reject it. Retain the claim so retrying cannot change its purpose.
+	consumed = true
 	if !v.allowsHostname(result.Hostname) {
 		return fmt.Errorf("%w: hostname %q is not allowed", ErrTurnstileInvalid, result.Hostname)
 	}

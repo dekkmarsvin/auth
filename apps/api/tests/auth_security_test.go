@@ -9,6 +9,7 @@ import (
 	authservice "auth/internal/service/auth"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -130,15 +131,51 @@ func TestAuthOtpRequestIsRateLimited(t *testing.T) {
 		"turnstileToken": turnstileGoodToken,
 	}
 	for i := 0; i < 100; i++ {
+		// Each legitimate request solves a fresh challenge. Token replay is
+		// covered separately and must not bypass this rate-limit assertion.
+		body["turnstileToken"] = fmt.Sprintf("rate-limit-token-%d", i)
 		resp, responseBody := sendJSON(t, http.MethodPost, "/v1/auth/otp/request", body, ip, nil)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("OTP request %d unexpectedly returned status %d: %s", i+1, resp.StatusCode, responseBody)
 		}
 	}
 
+	body["turnstileToken"] = "rate-limit-token-100"
 	resp, responseBody := sendJSON(t, http.MethodPost, "/v1/auth/otp/request", body, ip, nil)
 	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("expected OTP request 101 to be rate limited, got status %d: %s", resp.StatusCode, responseBody)
+	}
+}
+
+func TestAuthOtpRequestRejectsReplayedTurnstileToken(t *testing.T) {
+	resetDatabase(t)
+	body := map[string]string{
+		"email":          "replay@example.com",
+		"type":           repository.OtpVerify,
+		"turnstileToken": "replay-test-token",
+	}
+	resp, responseBody := sendJSON(t, http.MethodPost, "/v1/auth/otp/request", body, "203.0.113.42", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("fresh token returned status %d: %s", resp.StatusCode, responseBody)
+	}
+	var originalOtp string
+	if err := testDB.QueryRow("SELECT encode(code_hash, 'hex') FROM auth_otp WHERE email = $1", body["email"]).Scan(&originalOtp); err != nil {
+		t.Fatalf("read original OTP: %v", err)
+	}
+	resp, responseBody = sendJSON(t, http.MethodPost, "/v1/auth/otp/request", body, "203.0.113.42", nil)
+	if resp.StatusCode != http.StatusBadRequest || responseBody != "人机验证失败，请重试" {
+		t.Fatalf("replayed token returned status %d: %s", resp.StatusCode, responseBody)
+	}
+	var currentOtp string
+	var events int
+	if err := testDB.QueryRow("SELECT encode(code_hash, 'hex') FROM auth_otp WHERE email = $1", body["email"]).Scan(&currentOtp); err != nil {
+		t.Fatalf("read OTP after replay: %v", err)
+	}
+	if err := testDB.QueryRow("SELECT count(*) FROM auth_event WHERE action = $1", authservice.EventOtp).Scan(&events); err != nil {
+		t.Fatalf("count OTP events: %v", err)
+	}
+	if currentOtp != originalOtp || events != 1 {
+		t.Fatalf("replay changed OTP or emitted an event: unchanged=%v events=%d", currentOtp == originalOtp, events)
 	}
 }
 
