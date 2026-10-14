@@ -1,4 +1,4 @@
-import { themeBootstrapPlugin } from '@novelia/web-kit/vite';
+import { adminThemeBootstrapPlugin } from './storageMigrationPlugin.js';
 import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
 import { execFileSync } from 'node:child_process';
@@ -86,7 +86,7 @@ export default defineConfig(({ command, mode }) => {
       __BUILD_TIME__: JSON.stringify(buildTime),
       __COMMIT_SHA__: JSON.stringify(commitSha),
     },
-    plugins: [themeBootstrapPlugin(), tailwindcss(), vue()],
+    plugins: [adminThemeBootstrapPlugin(), tailwindcss(), vue()],
     build: {
       cssCodeSplit: false,
       rolldownOptions: {
