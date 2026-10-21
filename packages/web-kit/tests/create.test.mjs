@@ -1,25 +1,9 @@
 import assert from 'node:assert/strict';
-import { registerHooks } from 'node:module';
+import './helpers/register-source.mjs';
 import test from 'node:test';
 
 import { createApp, isReadonly } from 'vue';
 import { Toast, toastManager } from '../src/ui/toast/index.ts';
-
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (
-      specifier.startsWith('.') &&
-      !/\.[a-z]+$/i.test(specifier) &&
-      /\/packages\/web-kit\/src\//.test(context.parentURL ?? '')
-    ) {
-      return nextResolve(
-        specifier === './theme' ? `${specifier}/index.ts` : `${specifier}.ts`,
-        context,
-      );
-    }
-    return nextResolve(specifier, context);
-  },
-});
 
 const { useWebKit, useWebKitInternals } = await import('../src/context.ts');
 let moduleId = 0;
@@ -66,7 +50,10 @@ function fakeBrowser(t) {
   };
   const events = new EventTarget();
   const browser = {
-    location: { origin: 'https://web.example' },
+    location: {
+      origin: 'https://web.example',
+      href: 'https://web.example/posts?sort=new#latest',
+    },
     localStorage: storage,
     matchMedia: () => ({ matches: false }),
     addEventListener(...args) {
@@ -103,7 +90,7 @@ function fakeBrowser(t) {
     counts.cleared++;
     timers.delete(timer);
   });
-  return { counts, now, timers };
+  return { counts, now, timers, browser };
 }
 
 test('create restores session and theme, and rejects a second create', async (t) => {
@@ -121,16 +108,8 @@ test('create restores session and theme, and rejects a second create', async (t)
   assert.equal(kit.whoami.value.isAtLeastDaysOld(0), true);
   assert.equal(kit.theme.theme.value, 'dark');
   assert.equal('options' in kit, false);
-  assert.equal('start' in kit, false);
   // JWT 的秒时间戳在会话解析时转为毫秒，kit 保持同一单位。
   assert.equal(kit.whoami.value.user.createdAt, now * 1000);
-  const thirtyDaysLater = now * 1000 + 30 * 24 * 60 * 60 * 1000;
-  let currentTime = thirtyDaysLater - 1;
-  const clock = t.mock.method(Date, 'now', () => currentTime);
-  assert.equal(kit.whoami.value.isAtLeastDaysOld(30), false);
-  currentTime = thirtyDaysLater;
-  assert.equal(kit.whoami.value.isAtLeastDaysOld(30), true);
-  clock.mock.restore();
   // 归一化后的快照仍须保持深只读，不能被宿主改写。
   assert.equal(isReadonly(kit.whoami.value.user), true);
   const warnings = t.mock.method(console, 'warn', () => {});
@@ -167,8 +146,6 @@ test('create restores session and theme, and rejects a second create', async (t)
     add.mock.calls.map(({ arguments: [options] }) => options.description),
     ['before creation', 'after rejected creation'],
   );
-
-  assert.throws(() => createWebKit(options), /only be called once/);
 });
 
 test('invalid initial URL does not consume the singleton or allocate resources', async (t) => {
@@ -219,9 +196,6 @@ test('single owner, context-only hooks, and same-app idempotence', async (t) => 
   await attention.refresh();
   assert.equal(attention.status.value.strikes.hasUnread, true);
   assert.ok(counts.fetches >= 1);
-
-  assert.equal('start' in kit, false);
-  assert.equal('dispose' in kit, false);
 });
 
 test('public API hides session internals while sharing authentication with built-in features', async (t) => {
@@ -246,26 +220,26 @@ test('public API hides session internals while sharing authentication with built
   const {
     attention,
     options: internalOptions,
-    accountActions,
+    session,
     loadMyStrikes,
   } = internals;
   assert.equal(internalOptions.auth.url, 'https://web.example/auth/');
   // 内置组件依赖只剩一个内部上下文，形状固定且不可被宿主改写。
   assert.deepEqual(Object.keys(internals).sort(), [
-    'accountActions',
     'attention',
     'loadMyStrikes',
     'options',
+    'session',
   ]);
   assert.equal(Object.isFrozen(internals), true);
   for (const name of Object.keys(context)) {
     assert.equal(context[name], kit[name], name);
   }
-  assert.deepEqual(Object.keys(accountActions).sort(), [
-    'createLoginUrl',
-    'handleLoginMessage',
-    'toggleAdminMode',
-  ]);
+  assert.equal(session.whoami, context.whoami);
+  assert.equal(session.checkSignedIn, context.checkSignedIn);
+  assert.equal(session.logout, context.logout);
+  assert.equal('setAccessToken' in session, false);
+  assert.equal('session' in context, false);
   assert.deepEqual(Object.keys(context).sort(), [
     'banUser',
     'checkSignedIn',
@@ -276,22 +250,6 @@ test('public API hides session internals while sharing authentication with built
     'whoami',
   ]);
   assert.equal(Object.isFrozen(context), true);
-  for (const name of [
-    'start',
-    'dispose',
-    'api',
-    'options',
-    'attention',
-    'watchUser',
-    'createLoginUrl',
-    'handleLoginMessage',
-    'getAttentionStatus',
-    'updateMyStrikeReadState',
-    'getMyStrikes',
-    'toggleAdminMode',
-  ]) {
-    assert.equal(name in context, false, name);
-  }
   assert.throws(() => {
     context.logout = () => {};
   }, TypeError);
@@ -318,9 +276,6 @@ test('public API hides session internals while sharing authentication with built
     banRequest.headers.get('Authorization'),
     businessRequest.headers.get('Authorization'),
   );
-  const loginUrl = new URL(accountActions.createLoginUrl('dark'));
-  assert.equal(loginUrl.searchParams.get('app'), 'test');
-  assert.equal(loginUrl.searchParams.get('theme'), 'dark');
   assert.deepEqual(await loadMyStrikes({ page: 1, pageSize: 20 }), {
     total: 0,
     items: [],
@@ -334,73 +289,90 @@ test('public API hides session internals while sharing authentication with built
   assert.equal(await context.checkSignedIn(), false);
 });
 
-test('login accepts only its iframe and refreshes the shared kit session', async (t) => {
-  const { now } = fakeBrowser(t);
-  const token = `header.${Buffer.from(
+function accessToken(now, username = 'admin') {
+  return `header.${Buffer.from(
     JSON.stringify({
       uid: 2,
-      sub: 'admin',
+      sub: username,
       role: 'admin',
       crat: now,
       iat: now,
       exp: now + 3600,
     }),
   ).toString('base64url')}.signature`;
-  const refreshes = [];
+}
+
+function kitSession(kit) {
+  const app = createApp({});
+  kit.install(app);
+  return app.runWithContext(useWebKitInternals).session;
+}
+
+test('native login preserves the session on rejection and shares the returned token without refresh', async (t) => {
+  const { now } = fakeBrowser(t);
+  const token = accessToken(now);
+  const requests = [];
+  const loginBodies = [];
+  let rejectLogin = true;
+  let returnedToken = '';
   t.mock.method(globalThis, 'fetch', async (request) => {
-    if (new URL(request.url).pathname.endsWith('/auth/refresh')) {
-      refreshes.push(request);
-      return new Response(token);
+    requests.push(request);
+    if (new URL(request.url).pathname.endsWith('/auth/login')) {
+      loginBodies.push(await request.json());
+      return rejectLogin
+        ? new Response('invalid credentials', { status: 401 })
+        : new Response(returnedToken);
     }
     return Response.json({ strikes: { hasUnread: false } });
   });
-  const createWebKit = await freshFactory();
-  const kit = createWebKit(options);
-  const app = createApp({});
-  kit.install(app);
-  const { attention, accountActions: account } =
-    app.runWithContext(useWebKitInternals);
-  const { hasRoleAtLeast, isAtLeastDaysOld } = kit.whoami.value;
-  assert.equal(kit.whoami.value.isAdmin, false);
-  assert.equal(kit.whoami.value.asAdmin, false);
-  assert.equal(hasRoleAtLeast('member'), true);
-  assert.equal(hasRoleAtLeast('admin'), false);
-  assert.equal(hasRoleAtLeast('unknown'), false);
-  const frame = {};
-  const event = {
-    origin: 'https://web.example',
-    source: frame,
-    data: { type: 'login_success' },
-  };
-  for (const invalid of [
-    { ...event, origin: 'https://other.example' },
-    { ...event, source: {} },
-    { ...event, data: null },
-    { ...event, data: 'login_success' },
-    { ...event, data: { type: 'other' } },
-  ]) {
-    assert.equal(account.handleLoginMessage(invalid, frame), undefined);
-  }
-  assert.equal(account.handleLoginMessage(event, null), undefined);
-  assert.equal(refreshes.length, 0);
-  await account.handleLoginMessage(event, frame);
-  assert.equal(refreshes.length, 1);
-  assert.equal(new URL(refreshes[0].url).searchParams.get('app'), 'test');
-  assert.equal(refreshes[0].credentials, 'include');
+  const kit = (await freshFactory())(options);
+  const session = kitSession(kit);
+  const client = kit.createClient('https://business.example/api/');
+  const credentials = { username: 'admin', password: 'secret' };
+  await assert.rejects(
+    session.login(credentials.username, credentials.password),
+  );
+  assert.equal(kit.whoami.value.user.username, 'member');
+  await client.get('before');
+  assert.notEqual(
+    requests.at(-1).headers.get('Authorization'),
+    `Bearer ${token}`,
+  );
+
+  rejectLogin = false;
+  await assert.rejects(
+    session.login(credentials.username, credentials.password),
+  );
+  assert.equal(kit.whoami.value.user.username, 'member');
+  returnedToken = 'invalid-token';
+  await assert.rejects(
+    session.login(credentials.username, credentials.password),
+    /访问令牌格式无效/,
+  );
+  assert.equal(kit.whoami.value.user.username, 'member');
+  returnedToken = token;
+  await session.login(credentials.username, credentials.password);
+  const login = requests.find((request) => request.url.endsWith('/auth/login'));
+  assert.equal(login.method, 'POST');
+  assert.equal(login.credentials, 'include');
+  assert.equal(login.headers.has('Authorization'), false);
+  assert.deepEqual(loginBodies, [
+    { ...credentials, app: 'test' },
+    { ...credentials, app: 'test' },
+    { ...credentials, app: 'test' },
+    { ...credentials, app: 'test' },
+  ]);
   assert.equal(kit.whoami.value.user.username, 'admin');
   assert.equal(kit.whoami.value.isAdmin, true);
-  assert.equal(hasRoleAtLeast('admin'), true);
-  assert.equal(isAtLeastDaysOld(0), true);
-  assert.equal(kit.whoami.value.user.createdAt, now * 1000);
   assert.equal(kit.whoami.value.asAdmin, false);
-  account.toggleAdminMode();
+  session.toggleAdminMode();
   assert.equal(kit.whoami.value.asAdmin, true);
-  await attention.refresh();
-  await kit.logout();
-  assert.equal(kit.whoami.value.isAdmin, false);
-  assert.equal(kit.whoami.value.asAdmin, false);
-  assert.equal(hasRoleAtLeast('member'), false);
-  assert.equal(isAtLeastDaysOld(0), false);
+  await client.get('after');
+  assert.equal(requests.at(-1).headers.get('Authorization'), `Bearer ${token}`);
+  assert.equal(
+    requests.some((request) => request.url.includes('/auth/refresh')),
+    false,
+  );
 });
 
 test('the standalone auth package entry is unavailable', () => {

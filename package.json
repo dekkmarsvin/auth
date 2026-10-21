@@ -4,15 +4,20 @@
   "packageManager": "pnpm@10.33.4",
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
-    "dev": "pnpm --filter auth-login dev",
+    "dev": "pnpm dev:web",
+    "dev:web": "pnpm --filter auth-web dev",
     "dev:admin": "pnpm --filter auth-admin dev",
-    "dev:remote": "pnpm --filter auth-login dev:remote",
-    "dev:local": "pnpm --filter auth-login dev:local",
-    "dev:native": "pnpm --filter auth-login dev:native",
+    "dev:remote": "pnpm --filter auth-web dev:remote",
+    "dev:local": "pnpm --filter auth-web dev:local",
+    "dev:native": "pnpm --filter auth-web dev:native",
     "dev:web-kit": "pnpm --filter @novelia/web-kit dev",
-    "build": "pnpm --filter @novelia/web-kit build && pnpm --filter auth-login build && pnpm --filter auth-admin build",
-    "preview": "pnpm --filter auth-login preview",
+    "build": "pnpm --stream -r run build",
+    "test": "pnpm --stream -r --if-present run test",
+    "preview": "pnpm --filter auth-web preview",
     "preview:web-kit": "pnpm --filter @novelia/web-kit preview"
   },
   "devDependencies": {

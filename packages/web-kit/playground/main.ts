@@ -3,6 +3,7 @@ import { createApp } from 'vue';
 import { createRouter, createWebHashHistory } from 'vue-router';
 
 import App from './App.vue';
+import { componentPages } from './componentPages';
 import HomeView from './HomeView.vue';
 import './style.css';
 
@@ -30,30 +31,15 @@ const router = createRouter({
       name: 'components',
       component: () => import('./ComponentsView.vue'),
     },
+    ...componentPages.map(({ to, name, component }) => ({
+      path: to,
+      name,
+      component,
+    })),
+    // Preserve bookmarks to the former combined demo page.
     {
-      path: '/components/drawer',
-      name: 'components-drawer',
-      component: () => import('./components/DrawerView.vue'),
-    },
-    {
-      path: '/components/select',
-      name: 'components-select',
-      component: () => import('./components/SelectView.vue'),
-    },
-    {
-      path: '/components/action-menu',
-      name: 'components-action-menu',
-      component: () => import('./components/ActionMenuView.vue'),
-    },
-    {
-      path: '/components/pagination',
-      name: 'components-pagination',
-      component: () => import('./components/PaginationView.vue'),
-    },
-    {
-      path: '/components/async-content',
-      name: 'components-async-content',
-      component: () => import('./components/AsyncContentView.vue'),
+      path: '/components/layout-primitives',
+      redirect: '/components/scroll-area',
     },
     {
       path: '/profile',

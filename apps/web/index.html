@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>统一身份认证</title>
+    <link rel="preconnect" href="https://challenges.cloudflare.com" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="renderer" content="webkit" />
+    <meta name="force-rendering" content="webkit" />
+  </head>
+  <body>
+    <div id="fallback-error" style="position: fixed; height: 100vh"></div>
+    <script>
+      window.onerror = function (msg, url, line, col) {
+        var div = document.createElement('div');
+        div.innerText = `Error: ${line}:${col} ${msg} ${url}`;
+        document.getElementById('fallback-error').appendChild(div);
+        return false;
+      };
+    </script>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+    <noscript>本页面需要浏览器启用JavaScript</noscript>
+  </body>
+</html>

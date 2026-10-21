@@ -1,11 +1,11 @@
 import {
   createApiClient,
   createAuthAwareApiClient,
+  withAuth,
   type ApiClientOptions,
 } from './api/client';
 import { createAuthSession } from './auth/session';
 import { createAuthApi } from './api/requests';
-import { createLoginBridge } from './auth/login';
 import { type App, type DeepReadonly } from 'vue';
 import type { RouteLocationRaw } from 'vue-router';
 
@@ -99,11 +99,18 @@ export function createWebKit(options: WebKitOptions): WebKit {
   });
   const authUrl = new URL(normalizedOptions.auth.url);
   const authClient = createApiClient(new URL('api/v1/', authUrl).toString());
+  const app = normalizedOptions.auth.app;
   const session = createAuthSession({
-    app: normalizedOptions.auth.app,
-    requestLogout: () =>
+    login: (username, password) =>
+      authClient
+        .post('auth/login', {
+          credentials: 'include',
+          json: { username, password, app },
+        })
+        .text(),
+    logout: () =>
       authClient.post('auth/logout', { credentials: 'include' }).text(),
-    requestRefresh: (app) =>
+    refresh: () =>
       authClient
         .post('auth/refresh', {
           credentials: 'include',
@@ -111,15 +118,7 @@ export function createWebKit(options: WebKitOptions): WebKit {
         })
         .text(),
   });
-  const authApi = createAuthApi(authClient, session.accessToken);
-  const accountActions = Object.freeze({
-    ...createLoginBridge(
-      authUrl,
-      normalizedOptions.auth.app,
-      session.accessToken.refresh,
-    ),
-    toggleAdminMode: session.toggleAdminMode,
-  });
+  const authApi = createAuthApi(withAuth(authClient, session.accessToken));
   const attention = createAttention({
     whoami: session.whoami,
     getAttentionStatus: authApi.getAttentionStatus,
@@ -152,7 +151,7 @@ export function createWebKit(options: WebKitOptions): WebKit {
         Object.freeze({
           options: normalizedOptions,
           attention,
-          accountActions,
+          session,
           loadMyStrikes: authApi.getMyStrikes,
         }),
       );

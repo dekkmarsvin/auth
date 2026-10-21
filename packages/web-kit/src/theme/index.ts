@@ -8,7 +8,7 @@ import {
   type Ref,
 } from 'vue';
 
-import { useLocalStorage } from '../storage';
+import { useLocalStorage } from '../utils/storage';
 
 /** 实际生效的外观。 */
 export type Theme = 'light' | 'dark';
@@ -75,7 +75,7 @@ function watchSystemTheme(onChange: (theme: Theme) => void) {
 }
 
 export function createWebTheme() {
-  let transitionTimer: number | undefined;
+  let transitionTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   const override = shallowRef<ThemeOverride>();
   const originalTokens = new Map<string, { value: string; priority: string }>();
 
