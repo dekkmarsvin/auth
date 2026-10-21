@@ -7,7 +7,7 @@ on:
     paths:
       - .github/workflows/cd-web.yml
       - deploy/web/**
-      - apps/login/**
+      - apps/web/**
       - apps/admin/**
       - packages/web-kit/**
       - .dockerignore

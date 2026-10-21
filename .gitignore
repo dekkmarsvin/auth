@@ -1,5 +1,12 @@
 .vscode/
 
+# Local AI tooling; AGENTS.md remains shared fork policy.
+CLAUDE.md
+GEMINI.md
+.claude/
+.codex/
+.cursor/
+
 # Deploy
 /data/
 .env

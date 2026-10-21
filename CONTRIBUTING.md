@@ -27,13 +27,15 @@ docker compose up -d
 ```bash
 pnpm install
 
-pnpm dev     # 启动开发服务器
-pnpm build   # 编译项目
+pnpm dev:web   # 启动 apps/web 注册／重设密码开发服务器
+pnpm dev:admin # 启动管理端开发服务器
+pnpm build     # 构建工作区包和前端
+pnpm test      # 运行工作区测试
 ```
 
 启动时可根据需要连接不同的后端服务：
 
-- `pnpm dev` 或 `pnpm dev:remote`:对接线上后端 API，适合纯前端修改，请勿污染线上数据，默认禁用翻译上传。
+- `pnpm dev` 或 `pnpm dev:remote`:对接线上后端 API，适合纯前端修改，请勿提交真实注册、验证邮件或密码修改。
 - `pnpm dev:local`:对接本地 Docker 后端 API，需修改后端数据时使用。
 - `pnpm dev:native`:对接本地原生启动的后端 API，用于前后端联调。
 

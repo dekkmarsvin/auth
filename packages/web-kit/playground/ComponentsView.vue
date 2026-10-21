@@ -6,90 +6,13 @@ import {
   XTooltip,
   type XButtonVariant,
 } from '@novelia/web-kit';
-import { ref } from 'vue';
 import { RouterLink } from 'vue-router';
 
-const editableToastId = ref<string>();
-function showEditableToast() {
-  editableToastId.value = Toast.info(
-    '这条消息不会自动关闭，可更新或单独关闭。',
-    {
-      id: 'playground-editable-toast',
-      duration: 0,
-      onClose: () => {
-        editableToastId.value = undefined;
-      },
-    },
-  );
-}
-function updateEditableToast() {
-  if (editableToastId.value) {
-    Toast.update(editableToastId.value, {
-      message: '消息已更新，将在 3 秒后关闭。',
-      status: 'success',
-      duration: 3000,
-    });
-  }
-}
-function dismissEditableToast() {
-  if (editableToastId.value) Toast.dismiss(editableToastId.value);
-}
-
-const componentPages = [
-  {
-    to: '/components/drawer',
-    title: '抽屉 · XDrawer',
-    description: '四方向、尺寸控制、受控开关与拖动关闭。',
-  },
-  {
-    to: '/components/select',
-    title: '选择器 · XSelect',
-    description: '值绑定、禁用状态、键盘操作与长列表。',
-  },
-  {
-    to: '/components/action-menu',
-    title: '操作菜单与确认框',
-    description: '对齐、菜单项状态与危险操作确认流程。',
-  },
-  {
-    to: '/components/pagination',
-    title: '分页 · XPagination',
-    description: '受控页码、跳页与全局键盘翻页。',
-  },
-  {
-    to: '/components/async-content',
-    title: '异步内容 · XAsyncContent',
-    description: '加载、错误重试、空状态和正常内容。',
-  },
-];
-async function showPromiseToast(fail = false) {
-  await Toast.promise(
-    new Promise<string>((resolve, reject) => {
-      setTimeout(() => {
-        if (fail) reject(new Error('示例保存失败'));
-        else resolve('示例设置');
-      }, 1500);
-    }),
-    {
-      loading: '正在保存…',
-      success: '示例设置已保存',
-      error: '示例保存失败',
-    },
-  );
-}
+import { componentPages } from './componentPages';
 
 const sampleTime = new Date('2025-06-05T15:04:30+08:00');
 const relativeBase = new Date('2025-06-05T15:07:30+08:00');
-const variants: XButtonVariant[] = [
-  'primary',
-  'outline',
-  'danger',
-  'ghost',
-  'ghost-active',
-  'subtle',
-  'toolbar',
-  'plain',
-];
+const variants: XButtonVariant[] = ['primary', 'outline', 'danger', 'ghost'];
 </script>
 
 <template>
@@ -153,60 +76,6 @@ const variants: XButtonVariant[] = [
         </template>
         提示浮层与菜单使用相同的圆角和阴影。
       </XTooltip>
-    </section>
-
-    <section aria-labelledby="test-toast" class="border-t border-divider pt-6">
-      <h2 id="test-toast" class="mb-2 font-medium">通知 · Toast</h2>
-      <p class="mb-4 text-sm text-muted">
-        检查四种通知、单条更新与关闭、生命周期、多行内容及 Promise 状态更新。
-      </p>
-      <div class="flex flex-wrap items-center gap-3">
-        <XButton @click="Toast.success('操作成功')">成功通知</XButton>
-        <XButton variant="danger" @click="Toast.error('操作失败')">
-          错误通知
-        </XButton>
-        <XButton
-          variant="outline"
-          @click="
-            Toast.success(
-              '设置已保存。\n这是一条多行通知，用于检查换行和浮层宽度。',
-            )
-          "
-        >
-          多行通知
-        </XButton>
-        <XButton variant="outline" @click="showPromiseToast()">
-          Promise 成功
-        </XButton>
-        <XButton variant="outline" @click="showPromiseToast(true)">
-          Promise 失败
-        </XButton>
-        <XButton variant="outline" @click="Toast.info('这是一条信息通知')">
-          信息通知
-        </XButton>
-        <XButton
-          variant="outline"
-          @click="Toast.warning('请注意检查设置', { duration: 8000 })"
-        >
-          警告通知（8 秒）
-        </XButton>
-        <XButton variant="outline" @click="showEditableToast">常驻通知</XButton>
-        <XButton
-          variant="outline"
-          :disabled="!editableToastId"
-          @click="updateEditableToast"
-        >
-          更新通知
-        </XButton>
-        <XButton
-          variant="outline"
-          :disabled="!editableToastId"
-          @click="dismissEditableToast"
-        >
-          单独关闭
-        </XButton>
-        <XButton variant="ghost" @click="Toast.dismissAll()">清空通知</XButton>
-      </div>
     </section>
 
     <section aria-labelledby="test-time" class="border-t border-divider pt-6">

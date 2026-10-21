@@ -15,6 +15,8 @@ import {
 } from '@novelia/web-kit';
 import { RouterLink, useRoute } from 'vue-router';
 
+import { componentPages } from './componentPages';
+
 const route = useRoute();
 
 const navigationOptions: WebKitMenuOption[] = [
@@ -26,24 +28,12 @@ const navigationOptions: WebKitMenuOption[] = [
     label: '组件',
     icon: WidgetsOutlined,
     children: [
-      { key: 'components', label: '基础组件总览', to: '/components' },
-      { key: 'components-drawer', label: '抽屉', to: '/components/drawer' },
-      { key: 'components-select', label: '选择器', to: '/components/select' },
-      {
-        key: 'components-action-menu',
-        label: '菜单与确认框',
-        to: '/components/action-menu',
-      },
-      {
-        key: 'components-pagination',
-        label: '分页',
-        to: '/components/pagination',
-      },
-      {
-        key: 'components-async-content',
-        label: '异步内容',
-        to: '/components/async-content',
-      },
+      { key: 'components', label: '基础组件总览 Overview', to: '/components' },
+      ...componentPages.map(({ name, label, to }) => ({
+        key: name,
+        label,
+        to,
+      })),
     ],
   },
   {
@@ -107,7 +97,7 @@ const accountOptions: WebKitMenuOption[] = [
         <XButton
           :as="RouterLink"
           to="/theme"
-          variant="toolbar"
+          variant="ghost"
           size="icon"
           aria-label="主题测试"
           title="主题测试"
