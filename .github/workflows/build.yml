@@ -24,6 +24,8 @@ jobs:
           cache-dependency-path: apps/api/go.sum
       - run: go test ./...
         working-directory: apps/api
+      - run: go vet ./...
+        working-directory: apps/api
       - run: bash apps/api/script/test_integration.sh
       - run: bash script/test_schema_upgrade.sh
       - run: bash script/test_turnstile_config.sh
