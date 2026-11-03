@@ -95,5 +95,21 @@ live third-party availability.
   delivery steps, not results of this local validation. No commit, push, real
   OTP/email or production operation occurred in this implementation subtask.
 
+## Independent delivery verification
+
+- Selected SDK `b6277d5` passed all 184 upstream tests (zero skips), its complete
+  typecheck and playground typecheck/build in an isolated Linux Node 22.23.4 /
+  pnpm 11.28.5 fixture. Network was detached for tests/builds; all 210 SDK source
+  files remained byte-identical to the selected upstream tree.
+- Companion Auto-Novel SDK `9c479ae7` similarly passed 177 tests and both builds
+  unchanged. Different UI revisions retain the same authentication contract.
+- Independent review found no blocker in preserved API/account/CORS/token/
+  storage/bootstrap boundaries, the Admin role gate or migrated host helpers.
+- Real built Auto-Novel/Auth browser fixtures exercised native login, fixture
+  HttpOnly-cookie refresh, admin-mode retention, logout and registration/reset
+  form deep links. The forms were not submitted; real mail/OTP/CAPTCHA are not
+  claimed. Initial functional-head GitHub Build passed; final delivery checks
+  remain attached to PR #2.
+
 The curated commit must carry:
 `Sync-Manifest: docs/sync/2026-11-03-upstream-cdc91ef1.md`.
