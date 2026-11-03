@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { getApiErrorMessage } from '@novelia/web-kit';
-import { NAlert, NButton, NSpace, NText } from 'naive-ui';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router';
 
@@ -178,7 +177,7 @@ watch(
 </script>
 
 <template>
-  <n-space vertical :size="16" class="events-page">
+  <div class="events-page flex flex-col gap-4">
     <EventFilters
       v-model:actor="actorInput"
       v-model:target="targetInput"
@@ -187,17 +186,10 @@ watch(
       @search="search"
     />
 
-    <n-alert v-if="errorMessage" type="error" title="事件列表加载失败">
-      <n-space vertical size="small">
-        <n-text>{{ errorMessage }}</n-text>
-        <n-button size="small" @click="loadEvents">重新加载</n-button>
-      </n-space>
-    </n-alert>
-
     <EventList
-      v-if="!errorMessage"
       :events="events"
       :loading="loading"
+      :error="errorMessage"
       :total="total"
       :page="page"
       :page-size="pageSize"
@@ -205,8 +197,9 @@ watch(
       @update-page="changePage"
       @update-page-size="changePageSize"
       @reset-filters="resetFilters"
+      @retry="loadEvents"
     />
-  </n-space>
+  </div>
 </template>
 
 <style scoped>

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { NButton, NCard, NTag, NText } from 'naive-ui';
+import { XButton } from '@novelia/web-kit';
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 
+import StatusTag from '@/components/StatusTag.vue';
 import type { AuthSettings } from '@/api';
 
 const props = defineProps<{ settings: AuthSettings }>();
@@ -40,80 +41,58 @@ const features = computed(() => [
 </script>
 
 <template>
-  <n-card class="status-card" title="系统状态">
-    <template #header-extra>
+  <section class="status-card rounded-[3px] border border-divider bg-surface">
+    <header class="flex items-center gap-4 px-6 pt-[19px] pb-3">
+      <div class="min-w-0 flex-1 text-lg font-medium text-ink">系统状态</div>
       <RouterLink v-slot="{ navigate }" to="/settings" custom>
-        <n-button text type="primary" @click="navigate">管理设置</n-button>
+        <XButton
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          class="text-primary"
+          @click="navigate"
+        >
+          管理设置
+        </XButton>
       </RouterLink>
-    </template>
+    </header>
 
-    <div class="status-list">
-      <div v-for="feature in features" :key="feature.label" class="status-row">
-        <div class="status-copy">
-          <n-text strong>{{ feature.label }}</n-text>
-          <n-text depth="3">{{ feature.description }}</n-text>
+    <div
+      class="grid grid-cols-2 px-6 pt-2 pb-2 [@media(max-width:599px)]:grid-cols-1"
+    >
+      <div
+        v-for="feature in features"
+        :key="feature.label"
+        class="status-row flex min-w-0 items-center justify-between gap-4 px-5 py-3 [@media(max-width:599px)]:px-0"
+      >
+        <div class="flex min-w-0 flex-col gap-1">
+          <strong class="font-semibold text-ink">{{ feature.label }}</strong>
+          <span class="text-muted">{{ feature.description }}</span>
         </div>
-        <n-tag
-          :bordered="false"
-          :type="feature.enabled ? 'success' : 'error'"
+        <StatusTag
+          :tone="feature.enabled ? 'success' : 'error'"
+          size="md"
           round
         >
           {{ feature.enabled ? '已启用' : '已停用' }}
-        </n-tag>
+        </StatusTag>
       </div>
     </div>
 
-    <template #footer>
-      <n-text depth="3" class="updated-at">最近更新：{{ updatedAt }}</n-text>
-    </template>
-  </n-card>
+    <footer class="px-6 pt-3 pb-5 text-xs text-muted">
+      最近更新：{{ updatedAt }}
+    </footer>
+  </section>
 </template>
 
 <style scoped>
-.status-card :deep(.n-card-header) {
-  padding-bottom: 12px;
-}
-.status-card :deep(.n-card__content) {
-  padding-top: 8px;
-  padding-bottom: 8px;
-}
-.status-card :deep(.n-card__footer) {
-  padding-top: 12px;
-}
-.status-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.status-row {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 20px;
-}
 .status-row + .status-row {
-  border-left: 1px solid var(--n-border-color);
-}
-.status-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.updated-at {
-  font-size: 12px;
+  border-left: 1px solid var(--color-divider);
 }
 
 @media (max-width: 599px) {
-  .status-list {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .status-row {
-    padding-inline: 0;
-  }
   .status-row + .status-row {
-    border-top: 1px solid var(--n-border-color);
+    border-top: 1px solid var(--color-divider);
     border-left: 0;
   }
 }

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { getApiErrorMessage, roles } from '@novelia/web-kit';
-import { NAlert, NButton, NSpace, NText } from 'naive-ui';
+import { getApiErrorMessage, isKnownRole } from '@novelia/web-kit';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router';
 
@@ -35,7 +34,6 @@ const role = ref('');
 const createdRange = ref<[number, number] | null>(null);
 const pendingAction = ref<{ action: UserAction; user: User } | null>(null);
 let requestId = 0;
-const validRoles = new Set(roles);
 const hasFilters = computed(() =>
   Boolean(query.value || role.value || createdRange.value),
 );
@@ -76,7 +74,7 @@ function syncFromRoute() {
   pageSize.value = readPageSize(route.query);
   query.value = readQueryString(route.query, 'query').trim();
   const routeRole = readQueryString(route.query, 'role');
-  role.value = validRoles.has(routeRole) ? routeRole : '';
+  role.value = isKnownRole(routeRole) ? routeRole : '';
   createdRange.value = readCreatedRange(route.query);
 
   queryInput.value = query.value;
@@ -183,7 +181,7 @@ watch(
 </script>
 
 <template>
-  <n-space vertical :size="16" class="users-page">
+  <div class="users-page flex flex-col gap-4">
     <UserFilters
       v-model:query="queryInput"
       v-model:role="roleInput"
@@ -191,17 +189,10 @@ watch(
       @search="search"
     />
 
-    <n-alert v-if="errorMessage" type="error" title="用户列表加载失败">
-      <n-space vertical size="small">
-        <n-text>{{ errorMessage }}</n-text>
-        <n-button size="small" @click="loadUsers">重新加载</n-button>
-      </n-space>
-    </n-alert>
-
     <UserList
-      v-if="!errorMessage"
       :users="users"
       :loading="loading"
+      :error="errorMessage"
       :total="total"
       :page="page"
       :page-size="pageSize"
@@ -209,6 +200,7 @@ watch(
       @update-page="changePage"
       @update-page-size="changePageSize"
       @reset-filters="resetFilters"
+      @retry="loadUsers"
       @action="requestAction"
     />
 
@@ -217,7 +209,7 @@ watch(
       @close="closeActionModal"
       @success="handleActionSuccess"
     />
-  </n-space>
+  </div>
 </template>
 
 <style scoped>

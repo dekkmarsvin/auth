@@ -87,6 +87,9 @@ export default defineConfig(({ command, mode }) => {
       __COMMIT_SHA__: JSON.stringify(commitSha),
     },
     plugins: [adminThemeBootstrapPlugin(), tailwindcss(), vue()],
+    optimizeDeps: {
+      exclude: ['@novelia/web-kit'],
+    },
     build: {
       cssCodeSplit: false,
       rolldownOptions: {

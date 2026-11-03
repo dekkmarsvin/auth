@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import { getApiErrorMessage, Toast } from '@novelia/web-kit';
 import {
-  NAlert,
-  NButton,
-  NForm,
-  NFormItem,
-  NInput,
-  NInputNumber,
-  NModal,
-  NSpace,
-  NText,
-} from 'naive-ui';
+  getApiErrorMessage,
+  Toast,
+  XButton,
+  XDialog,
+  XInput,
+  XNumberInput,
+  XTextarea,
+} from '@novelia/web-kit';
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router';
 
@@ -45,7 +42,12 @@ const operatorUsername = ref('');
 const createdRange = ref<[number, number] | null>(null);
 const showCreateModal = ref(false);
 const createInProgress = ref(false);
-const createForm = reactive({
+const createForm = reactive<{
+  username: string;
+  reason: string;
+  evidence: string;
+  point: number | null;
+}>({
   username: '',
   reason: '',
   evidence: '',
@@ -63,9 +65,13 @@ const canCreate = computed(() =>
     createForm.username.trim() &&
     createForm.reason.trim() &&
     createForm.evidence.trim() &&
-    createForm.point > 0,
+    (createForm.point ?? 0) > 0,
   ),
 );
+
+function normalizePoint() {
+  return Math.max(1, Math.min(32767, Math.round(createForm.point ?? 1)));
+}
 const showRevokeModal = computed({
   get: () => pendingRevoke.value !== null,
   set: (show) => {
@@ -191,6 +197,7 @@ function changePageSize(nextPageSize: number) {
 }
 
 function openCreateModal() {
+  if (createInProgress.value) return;
   Object.assign(createForm, {
     username: '',
     reason: '',
@@ -205,7 +212,7 @@ function closeCreateModal() {
 }
 
 async function submitCreate() {
-  if (!canCreate.value) return;
+  if (createInProgress.value || !canCreate.value) return;
   createInProgress.value = true;
   await Toast.promise(
     api.admin
@@ -213,7 +220,7 @@ async function submitCreate() {
         username: createForm.username.trim(),
         reason: createForm.reason.trim(),
         evidence: createForm.evidence.trim(),
-        point: createForm.point,
+        point: normalizePoint(),
       })
       .then(async () => {
         showCreateModal.value = false;
@@ -243,11 +250,12 @@ async function submitCreate() {
 }
 
 function requestRevoke(strike: Strike) {
+  if (revokeInProgress.value) return;
   pendingRevoke.value = strike;
 }
 
 async function confirmRevoke() {
-  if (!pendingRevoke.value) return;
+  if (revokeInProgress.value || !pendingRevoke.value) return;
   revokeInProgress.value = true;
   await Toast.promise(
     api.admin.revokeStrike(pendingRevoke.value.id).then(async () => {
@@ -275,7 +283,7 @@ watch(
 </script>
 
 <template>
-  <n-space vertical :size="16" class="strikes-page">
+  <div class="strikes-page flex flex-col gap-4">
     <StrikeFilters
       v-model:username="usernameInput"
       v-model:operator-username="operatorUsernameInput"
@@ -284,17 +292,10 @@ watch(
       @create="openCreateModal"
     />
 
-    <n-alert v-if="errorMessage" type="error" title="违规记录加载失败">
-      <n-space vertical size="small">
-        <n-text>{{ errorMessage }}</n-text>
-        <n-button size="small" @click="loadStrikes">重新加载</n-button>
-      </n-space>
-    </n-alert>
-
     <StrikeList
-      v-if="!errorMessage"
       :strikes="strikes"
       :loading="loading"
+      :error="errorMessage"
       :total="total"
       :page="page"
       :page-size="pageSize"
@@ -302,111 +303,133 @@ watch(
       @update-page="changePage"
       @update-page-size="changePageSize"
       @reset-filters="resetFilters"
+      @retry="loadStrikes"
       @revoke="requestRevoke"
     />
 
-    <n-modal
-      :z-index="80"
-      v-model:show="showCreateModal"
-      preset="card"
+    <XDialog
+      :open="showCreateModal"
       title="新增警告"
-      style="width: min(560px, calc(100vw - 32px))"
-      :mask-closable="!createInProgress"
-      :close-on-esc="!createInProgress"
+      class="w-[560px]"
+      :closable="!createInProgress"
+      @update:open="(open) => !open && closeCreateModal()"
     >
-      <n-form label-placement="top" :show-feedback="false">
-        <n-space vertical :size="16">
-          <n-form-item label="目标用户名" required>
-            <n-input
-              v-model:value="createForm.username"
-              placeholder="仅可警告普通用户"
-              :disabled="createInProgress"
-            />
-          </n-form-item>
-          <n-form-item label="原因" required>
-            <n-input
-              v-model:value="createForm.reason"
-              type="textarea"
-              placeholder="说明违规原因"
-              :autosize="{ minRows: 2, maxRows: 5 }"
-              :disabled="createInProgress"
-              maxlength="500"
-              show-count
-            />
-          </n-form-item>
-          <n-form-item label="证据" required>
-            <n-input
-              v-model:value="createForm.evidence"
-              type="textarea"
-              placeholder="填写证据说明或链接"
-              :autosize="{ minRows: 2, maxRows: 5 }"
-              :disabled="createInProgress"
-              maxlength="1000"
-              show-count
-            />
-          </n-form-item>
-          <n-form-item label="扣分" required>
-            <n-input-number
-              v-model:value="createForm.point"
-              :min="1"
-              :max="32767"
-              :precision="0"
-              :disabled="createInProgress"
-            />
-          </n-form-item>
-          <n-alert type="warning" :bordered="false">
-            用户在 100 天内累计达到 3 分后，将自动转为受限用户。
-          </n-alert>
-          <div class="modal-actions">
-            <n-button :disabled="createInProgress" @click="closeCreateModal">
-              取消
-            </n-button>
-            <n-button
-              type="warning"
-              :loading="createInProgress"
-              :disabled="!canCreate"
-              @click="submitCreate"
-            >
-              确认警告
-            </n-button>
-          </div>
-        </n-space>
-      </n-form>
-    </n-modal>
-
-    <n-modal
-      :z-index="80"
-      v-model:show="showRevokeModal"
-      preset="card"
-      title="撤销违规记录"
-      style="width: min(500px, calc(100vw - 32px))"
-      :mask-closable="!revokeInProgress"
-      :close-on-esc="!revokeInProgress"
-    >
-      <n-space vertical :size="16">
-        <n-text>
-          确认撤销记录
-          <n-text strong>#{{ pendingRevoke?.id }}</n-text>
-          ？撤销后该记录的分数将不再计入处罚统计。
-        </n-text>
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="strike-username" class="text-sm text-ink">
+            <span class="mr-0.5 text-error" aria-hidden="true">*</span>
+            目标用户名
+          </label>
+          <XInput
+            id="strike-username"
+            v-model="createForm.username"
+            class="w-full"
+            placeholder="仅可警告普通用户"
+            :disabled="createInProgress"
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="strike-reason" class="text-sm text-ink">
+            <span class="mr-0.5 text-error" aria-hidden="true">*</span>
+            原因
+          </label>
+          <XTextarea
+            id="strike-reason"
+            v-model="createForm.reason"
+            placeholder="说明违规原因"
+            :autosize="{ minRows: 2, maxRows: 5 }"
+            :disabled="createInProgress"
+            maxlength="500"
+            show-count
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="strike-evidence" class="text-sm text-ink">
+            <span class="mr-0.5 text-error" aria-hidden="true">*</span>
+            证据
+          </label>
+          <XTextarea
+            id="strike-evidence"
+            v-model="createForm.evidence"
+            placeholder="填写证据说明或链接"
+            :autosize="{ minRows: 2, maxRows: 5 }"
+            :disabled="createInProgress"
+            maxlength="1000"
+            show-count
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="strike-point" class="text-sm text-ink">
+            <span class="mr-0.5 text-error" aria-hidden="true">*</span>
+            扣分
+          </label>
+          <XNumberInput
+            id="strike-point"
+            v-model="createForm.point"
+            class="w-32"
+            :min="1"
+            :max="32767"
+            :disabled="createInProgress"
+          />
+        </div>
+        <p
+          class="m-0 rounded-[3px] bg-warning-soft px-3.5 py-2 text-sm text-warning-text"
+        >
+          用户在 100 天内累计达到 3 分后，将自动转为受限用户。
+        </p>
         <div class="modal-actions">
-          <n-button
+          <XButton
+            color="neutral"
+            variant="outline"
+            :disabled="createInProgress"
+            @click="closeCreateModal"
+          >
+            取消
+          </XButton>
+          <XButton
+            color="warning"
+            :loading="createInProgress"
+            :disabled="!canCreate"
+            @click="submitCreate"
+          >
+            确认警告
+          </XButton>
+        </div>
+      </div>
+    </XDialog>
+
+    <XDialog
+      v-model:open="showRevokeModal"
+      title="撤销违规记录"
+      class="w-[500px]"
+      :closable="!revokeInProgress"
+    >
+      <div class="flex flex-col gap-4">
+        <p class="m-0 text-ink">
+          确认撤销记录
+          <strong class="text-ink">#{{ pendingRevoke?.id }}</strong>
+          ？撤销后该记录的分数将不再计入处罚统计。
+        </p>
+        <div class="modal-actions">
+          <XButton
+            color="neutral"
+            variant="outline"
             :disabled="revokeInProgress"
             @click="showRevokeModal = false"
           >
             取消
-          </n-button>
-          <n-button
-            type="warning"
+          </XButton>
+          <XButton
+            color="warning"
             :loading="revokeInProgress"
             @click="confirmRevoke"
           >
             确认撤销
-          </n-button>
+          </XButton>
         </div>
-      </n-space>
-    </n-modal>
-  </n-space>
+      </div>
+    </XDialog>
+  </div>
 </template>
 
 <style scoped>
@@ -419,9 +442,5 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-}
-
-:deep(.n-form-item-blank) {
-  min-height: auto;
 }
 </style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { XButton, XInput } from '@novelia/web-kit';
 import { SearchOutlined } from '@vicons/material';
-import { NButton, NIcon, NInput } from 'naive-ui';
 
 import FilterRow from '@/components/FilterRow.vue';
 import TimeRangeFilter from '@/components/TimeRangeFilter.vue';
@@ -25,33 +25,37 @@ function changeCreatedRange(value: [number, number] | null) {
 </script>
 
 <template>
-  <div class="filters">
+  <div class="grid w-full grid-cols-1 gap-4">
     <FilterRow label="操作者">
-      <n-input
-        v-model:value="operatorUsername"
-        class="filter-input"
+      <XInput
+        v-model="operatorUsername"
+        class="w-[min(400px,100%)]!"
         clearable
         placeholder="操作者用户名"
         @change="$emit('search')"
+        @keydown.enter="!$event.isComposing && $emit('search')"
+        @clear="$emit('search')"
       >
         <template #suffix>
-          <n-icon :component="SearchOutlined" />
+          <SearchOutlined class="size-5" aria-hidden="true" />
         </template>
-      </n-input>
+      </XInput>
     </FilterRow>
 
     <FilterRow label="目标用户">
-      <n-input
-        v-model:value="username"
-        class="filter-input"
+      <XInput
+        v-model="username"
+        class="w-[min(400px,100%)]!"
         clearable
         placeholder="目标用户名"
         @change="$emit('search')"
+        @keydown.enter="!$event.isComposing && $emit('search')"
+        @clear="$emit('search')"
       >
         <template #suffix>
-          <n-icon :component="SearchOutlined" />
+          <SearchOutlined class="size-5" aria-hidden="true" />
         </template>
-      </n-input>
+      </XInput>
     </FilterRow>
 
     <FilterRow label="时间">
@@ -61,33 +65,14 @@ function changeCreatedRange(value: [number, number] | null) {
       />
     </FilterRow>
 
-    <div class="filter-actions">
-      <n-button type="warning" @click="$emit('create')">新增警告</n-button>
+    <div class="flex justify-end gap-3">
+      <XButton
+        class="h-[34px] min-h-0 rounded-[3px] px-3.5 font-normal [@media(max-width:767px)]:flex-1"
+        color="warning"
+        @click="$emit('create')"
+      >
+        新增警告
+      </XButton>
     </div>
   </div>
 </template>
-
-<style scoped>
-.filters {
-  display: grid;
-  width: 100%;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-}
-
-.filter-input {
-  width: min(400px, 100%);
-}
-
-.filter-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-
-@media (max-width: 767px) {
-  .filter-actions :deep(.n-button) {
-    flex: 1;
-  }
-}
-</style>

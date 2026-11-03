@@ -15,3 +15,17 @@ Auth no longer provides it. Old/new Turnstile actions must not be mixed. Use a
 short authentication maintenance window with a tested release group instead of
 leaving a permanent compatibility layer. No account/password or schema migration
 is needed by this upstream range.
+
+On 2026-11-03 the maintainer approved adopting Auth upstream through `cdc91ef1`.
+Web Kit now lives in the independent `auto-novel/web-kit` repository. Auth uses
+its upstream-selected `b6277d5`, while Auto-Novel uses `9c479ae7`; their core
+authentication, API-client and storage implementations are identical. Keep
+consumer pins separate: newer UI exports can disappear without changing the
+wire contract, and Auth still uses `XAsyncContent` at its selected revision.
+
+Remove the in-repository SDK workspace, migrate only the small test helpers
+needed by this host's behavioral regressions, and preserve Admin's storage
+adapter outside the SDK. Do not mount the shared Admin switcher, whose upstream
+URLs are not installation configuration. This synchronization adds no SQL,
+account, password, cookie or login-protocol migration. Its rollback is an image
+rollback using the existing data and secrets, not a database recreation.
