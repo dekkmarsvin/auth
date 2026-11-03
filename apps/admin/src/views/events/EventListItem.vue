@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { NTag, NText, NTooltip } from 'naive-ui';
+import { XTooltip } from '@novelia/web-kit';
 import { computed } from 'vue';
 
+import StatusTag from '@/components/StatusTag.vue';
 import type { Event } from '@/api';
 
 interface EventDetail {
@@ -28,17 +29,17 @@ const actionLabels: Record<string, string> = {
   'update-setting': '更新设置',
 };
 
-const actionTypes: Record<
+const actionTones: Record<
   string,
-  'default' | 'success' | 'warning' | 'error' | 'info'
+  'neutral' | 'success' | 'warning' | 'error' | 'info'
 > = {
   login: 'success',
   register: 'info',
-  logout: 'default',
+  logout: 'neutral',
   otp: 'info',
   reset_password: 'warning',
   'trust-user': 'success',
-  'untrust-user': 'default',
+  'untrust-user': 'neutral',
   'restrict-user': 'warning',
   'unrestrict-user': 'success',
   'ban-user': 'error',
@@ -145,45 +146,49 @@ function formatId(id: number) {
 <template>
   <div class="event-row">
     <div class="summary">
-      <n-text depth="3" class="event-id">#{{ formatId(event.id) }}</n-text>
-      <n-tag
-        size="small"
-        :bordered="false"
-        :type="actionTypes[event.action] ?? 'default'"
-      >
+      <span class="text-muted event-id">#{{ formatId(event.id) }}</span>
+      <StatusTag :tone="actionTones[event.action] ?? 'neutral'">
         {{ actionLabels[event.action] ?? event.action }}
-      </n-tag>
+      </StatusTag>
     </div>
 
     <div class="participants">
       <div class="field">
-        <n-text depth="3" class="field-label">操作者</n-text>
-        <n-text class="field-value">{{ detail.actor_user || '—' }}</n-text>
+        <span class="text-muted field-label">操作者</span>
+        <span class="text-ink field-value">{{ detail.actor_user || '—' }}</span>
       </div>
       <div class="field">
-        <n-text depth="3" class="field-label">目标</n-text>
-        <n-text class="field-value">{{ detail.target_user || '—' }}</n-text>
+        <span class="text-muted field-label">目标</span>
+        <span class="text-ink field-value">
+          {{ detail.target_user || '—' }}
+        </span>
       </div>
     </div>
 
     <div class="metadata">
       <div class="field">
-        <n-text depth="3" class="field-label">详情</n-text>
-        <n-tooltip
-          placement="top-start"
+        <span class="text-muted field-label">详情</span>
+        <XTooltip
+          side="top"
+          align="start"
           :style="{ maxWidth: 'min(560px, calc(100vw - 32px))' }"
         >
           <template #trigger>
-            <n-text class="field-value detail detail-trigger">
+            <span
+              class="text-ink field-value detail detail-trigger"
+              tabindex="0"
+            >
               {{ detailSummary }}
-            </n-text>
+            </span>
           </template>
           <pre class="detail-tooltip">{{ formattedDetail }}</pre>
-        </n-tooltip>
+        </XTooltip>
       </div>
       <div class="field">
-        <n-text depth="3" class="field-label">时间</n-text>
-        <n-text class="field-value">{{ formatDate(event.createdAt) }}</n-text>
+        <span class="text-muted field-label">时间</span>
+        <span class="text-ink field-value">
+          {{ formatDate(event.createdAt) }}
+        </span>
       </div>
     </div>
   </div>

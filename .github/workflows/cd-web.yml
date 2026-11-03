@@ -9,7 +9,6 @@ on:
       - deploy/web/**
       - apps/web/**
       - apps/admin/**
-      - packages/web-kit/**
       - .dockerignore
       - package.json
       - pnpm-lock.yaml

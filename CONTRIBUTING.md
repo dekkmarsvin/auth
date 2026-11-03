@@ -29,7 +29,7 @@ pnpm install
 
 pnpm dev:web   # 启动 apps/web 注册／重设密码开发服务器
 pnpm dev:admin # 启动管理端开发服务器
-pnpm build     # 构建工作区包和前端
+pnpm build     # 构建两个前端；Web Kit 使用锁定的独立依赖
 pnpm test      # 运行工作区测试
 ```
 
@@ -40,6 +40,11 @@ pnpm test      # 运行工作区测试
 - `pnpm dev:native`:对接本地原生启动的后端 API，用于前后端联调。
 
 若需要在手机等设备调试，可添加 `--host` 参数启动服务。
+
+Web Kit 由独立 `auto-novel/web-kit` 仓库提供，不在这里维护或修补源码。
+Auth 使用其上游选定的 SDK revision；与 Auto-Novel 的 SDK pin 可以不同，
+只要两者的认证契约相容。安装后执行 frozen install、完整 build/test，并保留
+Admin 储存迁移与账户页面的回归测试。
 
 ## 后端开发
 

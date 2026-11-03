@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as Vue from 'vue';
-import { compileComponent } from '../../../packages/web-kit/tests/helpers/compile-component.mjs';
-import {
-  createTestRenderer,
-  dispatch,
-} from '../../../packages/web-kit/tests/helpers/test-renderer.mjs';
+import { compileComponent } from './helpers/compile-component.mjs';
+import { createTestRenderer, dispatch } from './helpers/test-renderer.mjs';
 import { parseAccountFlow } from '../src/accountFlow.ts';
 
 const App = compileComponent(new URL('../src/App.vue', import.meta.url), {
